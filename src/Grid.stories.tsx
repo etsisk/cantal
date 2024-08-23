@@ -1,12 +1,9 @@
-import { useState } from 'react';
-import {
-  type ColumnDef,
-  type DataRow,
-  Grid,
-} from './Grid';
-import { colDefs, data, groupedColumnDefs } from './stories';
+import { type ChangeEvent, useState } from "react";
+import { type ColumnDef, type DataRow, Grid } from "./Grid";
+import type { FilterProps } from "./Filter";
+import { colDefs, data, groupedColumnDefs } from "./stories";
 
-export const Simple = () => {
+export function Simple() {
   const defs = colDefs
     .slice(0, 2)
     .concat(colDefs.slice(4, 7))
@@ -15,13 +12,13 @@ export const Simple = () => {
       width: 160,
     }));
   return <Grid columnDefs={defs} data={data.slice(0, 6)} />;
-};
+}
 
-export const Sizing = () => {
+export function Sizing() {
   const [isBlock, setIsBlock] = useState<boolean>(false);
   const containerStyles = isBlock
-    ? { display: 'block', height: '240px' }
-    : { height: '200px', width: '500px' };
+    ? { display: "block", height: "240px" }
+    : { height: "200px", width: "500px" };
   // const defs = colDefs.map((def: ColumnDef) => ({ ...def, width: '1fr' }));
   return (
     <div>
@@ -35,9 +32,9 @@ export const Sizing = () => {
       />
     </div>
   );
-};
+}
 
-export const Styling = () => {
+export function Styling() {
   const [gapState, setGapState] = useState(0);
   const gapStates = [
     { columnGap: 1, rowGap: 0 },
@@ -60,35 +57,35 @@ export const Styling = () => {
         gap={gapStates[gapState]}
         styles={{
           container: {
-            borderColor: gapState === 1 ? 'transparent' : '#ccc',
+            borderColor: gapState === 1 ? "transparent" : "#ccc",
           },
         }}
       />
     </div>
   );
-};
+}
 
-export const CustomAriaLabels = () => {
+export function CustomAriaLabels() {
   const defs = colDefs.map((def) => {
     return {
       ...def,
-      ariaCellLabel: 'Value',
-      ariaHeaderCellLabel: 'Thing',
+      ariaCellLabel: "Value",
+      ariaHeaderCellLabel: "Thing",
     };
   });
 
   return <Grid columnDefs={defs} data={data} />;
-};
+}
 
-export const Sorting = () => {
+export function Sorting() {
   const [sorts, setSorts] = useState({});
   const defs = colDefs.map((def) => ({
     ...def,
     sortable: true,
     sortStates: [
-      { label: 'unsorted', symbol: '↑↓', iterable: false },
-      { label: 'ascending', symbol: '↑' },
-      { label: 'descending', symbol: '↓' },
+      { label: "unsorted", symbol: "↑↓", iterable: false },
+      { label: "ascending", symbol: "↑" },
+      { label: "descending", symbol: "↓" },
     ],
     width: 180,
   }));
@@ -99,7 +96,7 @@ export const Sorting = () => {
   ) {
     return data.toSorted((a: DataRow, b: DataRow) => {
       for (let [field, value] of Object.entries(columnSorts)) {
-        if (value === 'unsorted') {
+        if (value === "unsorted") {
           continue;
         }
 
@@ -107,7 +104,7 @@ export const Sorting = () => {
         const rowB = b[field];
 
         let result = rowA == rowB ? 0 : rowA > rowB ? 1 : -1;
-        result *= value === 'ascending' ? 1 : -1;
+        result *= value === "ascending" ? 1 : -1;
 
         if (result !== 0) {
           return result;
@@ -136,4 +133,94 @@ export const Sorting = () => {
       />
     </div>
   );
-};
+}
+
+interface SelectProps extends FilterProps {
+  options: { label: string; value: string }[];
+}
+
+function SelectFilterer({
+  field,
+  handleFilter,
+  options,
+  styles,
+}: SelectProps) {
+  const filterStyle = {
+    display: "block",
+    margin: "4px 0 0",
+    ...styles,
+  };
+
+  function handleInputChange(e: ChangeEvent<HTMLSelectElement>) {
+    handleFilter(e.target.name, e.target.value);
+  }
+
+  return (
+    <select
+      aria-label="Filter"
+      onChange={handleInputChange}
+      name={field}
+      style={filterStyle}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function CitySelecter(props) {
+  const uniqueArr = Array.from(new Set(data.map((row) => row.city)));
+  const options = [
+    { label: "All", value: "" },
+    ...uniqueArr.map((city) => ({ label: city, value: city })),
+  ];
+  return <SelectFilterer {...props} options={options} />;
+}
+export function Filtering() {
+  const [filters, setFilters] = useState<{ [key: string]: string }>({});
+  const defs = colDefs
+    .map((def) => ({
+      ...def,
+      filterable: true,
+    }))
+    .map((def) =>
+      def.field === "city" ? { ...def, filterer: CitySelecter } : def,
+    );
+
+  function filter(
+    data: { [key: string]: unknown }[],
+    filters: { [key: string]: string },
+  ) {
+    return data.filter((row) => {
+      for (let [field, filterValue] of Object.entries(filters)) {
+        if (filterValue.length === 0) {
+          continue;
+        }
+        const value = row[field];
+        if (value === undefined || value === null) {
+          return false;
+        }
+        if (!String(value).toLowerCase().includes(filterValue.toLowerCase())) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  return (
+    <div>
+      <Grid
+        columnDefs={defs}
+        data={filter(data, filters)}
+        filters={filters}
+        handleFilter={(field: string, value: string) =>
+          setFilters((prev) => ({ ...prev, [field]: value }))
+        }
+      />
+    </div>
+  );
+}

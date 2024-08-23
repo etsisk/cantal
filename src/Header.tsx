@@ -131,6 +131,7 @@ export function Header({
                         .map((def) => (
                           <HeaderCell
                             columnDef={def}
+                            filterer={def.filterer}
                             filters={filters}
                             handleFilter={handleFilter}
                             handleResize={handleColumnResize}
@@ -148,6 +149,7 @@ export function Header({
                   (def: ColumnDefWithDefaults) => (
                     <HeaderCell
                       columnDef={def}
+                      filterer={def.filterer}
                       filters={filters}
                       handleFilter={handleFilter}
                       handleResize={handleColumnResize}
@@ -168,6 +170,7 @@ export function Header({
                     (def: ColumnDefWithDefaults) => (
                       <HeaderCell
                         columnDef={def}
+                        filterer={def.filterer}
                         filters={filters}
                         handleFilter={handleFilter}
                         handleResize={handleColumnResize}
@@ -186,6 +189,7 @@ export function Header({
               {unpinnedColumns.map((def: ColumnDefWithDefaults) => (
                 <HeaderCell
                   columnDef={def}
+                  filterer={def.filterer}
                   filters={filters}
                   handleFilter={handleFilter}
                   handleResize={handleColumnResize}

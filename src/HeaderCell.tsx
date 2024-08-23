@@ -1,12 +1,14 @@
-import { type ChangeEvent, type PointerEvent, useRef, useState } from "react";
+import { type FC, type PointerEvent, type ReactNode, useRef, useState } from "react";
 import { type ColumnDefWithDefaults } from "./Grid";
 import type { Position } from "./Header";
-import { Resizer } from './Resizer';
-import { Sorter, type SortState } from './Sorter';
+import { Filter } from "./Filter";
+import { Resizer } from "./Resizer";
+import { Sorter, type SortState } from "./Sorter";
 
 interface HeaderCellProps {
   columnDef: ColumnDefWithDefaults;
   filters: { [key: string]: string };
+  filterer: FC | null;
   handleFilter: (field: string, value: string) => void;
   handleResize: (
     columnDef: ColumnDefWithDefaults,
@@ -23,6 +25,7 @@ interface HeaderCellProps {
 
 export function HeaderCell({
   columnDef,
+  filterer: Filter = null,
   filters,
   handleFilter,
   handleResize,
@@ -66,24 +69,25 @@ export function HeaderCell({
       <div className="cantal-headercell-content">
         <div className="cantal-headercell-label">
           {columnDef.sortable ? (
-          <>
-            <span className="cantal-headercell-label-text">{columnDef.title}</span>
-            <Sorter
-              className="cantal-headercell-sorter"
-              handleSort={(e) => handleSort(updateSorts(columnDef, sorts), e)}
-              state={findState(columnDef, sorts)}
-            />
+            <>
+              <span className="cantal-headercell-label-text">
+                {columnDef.title}
+              </span>
+              <Sorter
+                className="cantal-headercell-sorter"
+                handleSort={(e) => handleSort(updateSorts(columnDef, sorts), e)}
+                state={findState(columnDef, sorts)}
+              />
             </>
-          ) : columnDef.title}
+          ) : (
+            columnDef.title
+          )}
         </div>
-        {columnDef.filterable && (
-          <input
-            className="cantal-headercell-filter"
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              handleFilter(columnDef.field, e.target.value)
-            }
-            type="search"
-            value={filters[columnDef.field] ?? ""}
+        {columnDef.filterable && Filter && (
+          <Filter
+            field={columnDef.field}
+            handleFilter={handleFilter}
+            value={filters[columnDef.field]}
           />
         )}
       </div>

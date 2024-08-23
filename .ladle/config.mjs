@@ -6,6 +6,7 @@ export default {
     'grid--styling',
     'grid--custom-aria-labels',
     'grid--sorting',
+    'grid--filtering',
   ],
 };
 

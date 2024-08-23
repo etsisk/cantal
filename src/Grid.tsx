@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Body, type Cell } from "./Body";
 import { Header, type Position } from "./Header";
+import { Filter } from './Filter';
 import type { SortState } from "./Sorter";
 
 export interface ColumnDef {
@@ -28,6 +29,7 @@ export interface ColumnDef {
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
+  filterer: ReactNode;
   minWidth: number;
   sortStates: SortState[];
   subcolumns: ColumnDefWithDefaults[];
@@ -196,6 +198,7 @@ const columnDefDefaults = {
         return false;
       })
       .join(" ")}`,
+  filterer: Filter,
   minWidth: MIN_COLUMN_WIDTH,
   sortStates: [
     { label: "unsorted", symbol: "↑↓", iterable: false },
