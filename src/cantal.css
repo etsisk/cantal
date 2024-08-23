@@ -1,0 +1,133 @@
+:root {
+  --background-color: #ddd;
+  --border-color: #ccc;
+  --header-background-color: #f5f7f7;
+  --header-color: #555;
+  --cell-background-color: #fff;
+  --cell-pinned-background-color: #f0f2f2;
+  --cell-focus-color: rgb(0, 145, 234);
+  --cell-color: #333;
+}
+
+.cantal {
+  background-color: var(--cell-background-color);
+  border: 1px solid var(--border-color);
+  display: inline flow-root;
+}
+
+.cantal-header,
+.cantal-body {
+  background-color: var(--background-color);
+  box-sizing: inherit;
+  display: inline flow-root;
+  font-size: 14px;
+  gap: 1px;
+}
+
+.cantal-header {
+  padding-block-end: 1px; /* Exposes bottom border for clear separation with body */
+}
+
+.cantal-body {
+  position: relative; /* Scopes offset values to body canvas */
+}
+
+.cantal-headercell {
+  background-color: var(--header-background-color);
+  color: var(--header-color);
+  padding: 4px;
+  /* position: sticky; *//* Needed to make the absolutely positioned resizer go in the right place */
+}
+
+.cantal-headercell-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.cantal-headercell-label {
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cantal-headercell-label:has(.cantal-headercell-sorter) {
+  display: flex;
+  overflow: unset;
+  text-overflow: unset;
+  white-space: unset;
+}
+
+.cantal-headercell-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cantal-headercell-filter {
+  background-color: var(--cell-background-color);
+  border-color: var(--border-color);
+  border-width: 1px;
+  color: var(--cell-color);
+  display: block;
+  margin: 4px 0 0;
+}
+
+.cantal-headercell-resizer {
+  cursor: col-resize;
+  height: 100%;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 6px;
+}
+
+.cantal-headercell-sorter {
+  background: transparent;
+  border: none;
+  color: var(--header-color);
+  cursor: pointer;
+  letter-spacing: -2px;
+}
+
+.cantal-cell-base {
+  background-color: var(--cell-background-color);
+  border: 1px solid transparent;
+  color: var(--cell-color);
+  line-height: 1.8;
+  outline: initial;
+  padding: 0 4px;
+  /* Make conditional? */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cantal-cell-pinned-start,
+.cantal-cell-pinned-end {
+  background-color: var(--cell-pinned-background-color);
+}
+
+.cantal-cell-focused {
+  border: 1px solid var(--cell-focus-color);
+}
+
+.cantal-cell-selected {
+  background-image: linear-gradient(
+    rgba(0, 145, 234, 0.12),
+    rgba(0, 145, 234, 0.12)
+  );
+}
+
+[data-theme="dark"] {
+  --background-color: #555;
+  --border-color: #555;
+  --header-background-color: #333;
+  --header-color: #ddd;
+  --cell-background-color: #222;
+  --cell-pinned-background-color: #333;
+  --cell-color: #f5f7f7;
+}
+
