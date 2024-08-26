@@ -1,17 +1,21 @@
 import type { CSSProperties, PointerEvent } from "react";
-import { type ColumnDefWithDefaults, getLeafColumns, ColumnDef } from "./Grid";
+import { ColumnDef, type ColumnDefWithDefaults, getLeafColumns } from "./Grid";
 import { HeaderCell } from "./HeaderCell";
 
+// QUESTION: add subcolumns property?
+// Could be useful for resizing (knowing if it's a leaf column or an ancestor)
 export interface Position {
   ancestors: ColumnDefWithDefaults[];
   columnIndex: number;
   columnIndexEnd: number;
+  depth: number;
   field: string;
   level: number;
   subcolumnIndex: number;
 }
 
 interface HeaderProps {
+  canvasWidth: number;
   columnDefs: ColumnDefWithDefaults[];
   sorts: { [key: string]: string };
   filters: { [key: string]: string };
@@ -43,10 +47,8 @@ export function Header({
   styles,
 }: HeaderProps) {
   const positions = new WeakMap();
-  const flattenedColumns = getFlattenedColumns(columnDefs, positions);
-  const columnDepth = Math.max(
-    ...flattenedColumns.map((col) => positions.get(col).level),
-  );
+  const maxDepth = getColumnDepth(columnDefs);
+  const flattenedColumns = getFlattenedColumns(columnDefs, positions, maxDepth);
 
   // TODO: Include Ancenstors and properly define their columnIndex, columnIndexEnd
   const pinnedLeftColumns = flattenedColumns
@@ -74,16 +76,65 @@ export function Header({
       },
     }));
 
-  // TODO: Code clean up
   function handleColumnResize(
     columnDef: ColumnDefWithDefaults,
     columnWidth: number,
     delta: number,
-  ) {}
+  ) {
+    if (columnDef.subcolumns && columnDef.subcolumns.length > 0) {
+      const childLeafColumns = getLeafColumns(columnDef.subcolumns);
+      const totalLeafColWidth = childLeafColumns
+        .map((col) => col.width)
+        .reduce((a, b) => a + b, 0);
+      const newWidth = totalLeafColWidth + delta;
+      const newDefs = childLeafColumns.map((def) => ({ ...def, width: Math.max(def.minWidth, Math.round((def.width * newWidth) / totalLeafColWidth))}));
+      const resizedColumnDefs = childLeafColumns.reduce((resized, def, i) => {
+        if (resized.length === 0) {
+        return replaceColumn(columnDefs, def, newDefs[i]);
+        }
+        return replaceColumn(resized, def, newDefs[i]);
+      }, []);
+      handleResize(columnDef.field, newWidth, resizedColumnDefs);
+    } else if (columnDef) {
+      const newWidth = columnWidth + delta;
+      const width = Math.max(columnDef.minWidth, newWidth);
+      const resizedColumnDefs = replaceColumn(columnDefs, columnDef, {
+        ...columnDef,
+        width,
+      });
+      handleResize(columnDef.field, width, resizedColumnDefs);
+    }
+  }
+
+  function replaceColumn(
+    columnDefs: ColumnDefWithDefaults[],
+    existingDef: ColumnDefWithDefaults,
+    newDef: ColumnDefWithDefaults,
+  ): ColumnDefWithDefaults[] {
+    const colDefs = [];
+    const meta = positions.get(existingDef);
+    for (let def of columnDefs) {
+      if (def.field === existingDef.field) {
+        colDefs.push(newDef);
+      } else if (
+        meta.ancestors
+          .map((ancestor: ColumnDefWithDefaults) => ancestor.field)
+          .includes(def.field)
+      ) {
+        colDefs.push({
+          ...def,
+          subcolumns: replaceColumn(def.subcolumns, existingDef, newDef),
+        });
+      } else {
+        colDefs.push(def);
+      }
+    }
+    return colDefs;
+  }
 
   const viewportStyles = {
-    overflow: 'hidden',
-    width: 'inherit',
+    overflow: "hidden",
+    width: "inherit",
   };
 
   const canvasStyles = {
@@ -91,8 +142,8 @@ export function Header({
   };
 
   const pinnedStyles = {
-    backgroundColor: 'var(--background-color)',
-    gridTemplateColumns: 'subgrid',
+    backgroundColor: "var(--background-color)",
+    gridTemplateColumns: "subgrid",
   };
 
   const pinnedLeftStyles = {
@@ -111,12 +162,12 @@ export function Header({
     gridColumn: `${leafColumns.length - pinnedRightColumns.length + 1} / ${
       leafColumns.length + 1
     }`,
-  }
+  };
 
   return (
     <div className="cantal-header-viewport" ref={ref} style={viewportStyles}>
       <div className="cantal-header-canvas" style={canvasStyles}>
-        <div className="cantal-header" style={{display: 'grid', ...styles}}>
+        <div className="cantal-header" style={{ display: "grid", ...styles }}>
           {pinnedLeftColumns.length > 0 || pinnedRightColumns.length > 0 ? (
             <>
               {pinnedLeftColumns.length > 0 && (
@@ -124,29 +175,47 @@ export function Header({
                   className="cantal-header-pinned-left"
                   style={pinnedLeftStyles}
                 >
-                  {pinnedLeftColumns.flatMap(
-                    (def: ColumnDefWithDefaults) =>
-                      positions.get(def).ancestors
-                        .concat(def)
-                        .map((def) => (
-                          <HeaderCell
-                            columnDef={def}
-                            filterer={def.filterer}
-                            filters={filters}
-                            handleFilter={handleFilter}
-                            handleResize={handleColumnResize}
-                            handleSort={handleSort}
-                            key={def.field}
-                            position={positions.get(def)}
-                            sorts={sorts}
-                          />
-                        )),
+                  {pinnedLeftColumns.flatMap((def: ColumnDefWithDefaults) =>
+                    positions
+                      .get(def)
+                      .ancestors.concat(def)
+                      .map((def: ColumnDefWithDefaults) => (
+                        <HeaderCell
+                          columnDef={def}
+                          filterer={def.filterer}
+                          filters={filters}
+                          handleFilter={handleFilter}
+                          handleResize={handleColumnResize}
+                          handleSort={handleSort}
+                          key={def.field}
+                          position={positions.get(def)}
+                          sorts={sorts}
+                        />
+                      )),
                   )}
                 </div>
               )}
               <div className="cantal-header-unpinned" style={unpinnedStyles}>
-                {unpinnedColumns.map(
-                  (def: ColumnDefWithDefaults) => (
+                {unpinnedColumns.map((def: ColumnDefWithDefaults) => (
+                  <HeaderCell
+                    columnDef={def}
+                    filterer={def.filterer}
+                    filters={filters}
+                    handleFilter={handleFilter}
+                    handleResize={handleColumnResize}
+                    handleSort={handleSort}
+                    key={def.field}
+                    position={positions.get(def)}
+                    sorts={sorts}
+                  />
+                ))}
+              </div>
+              {pinnedRightColumns.length > 0 && (
+                <div
+                  className="mestia-header-pinned-right"
+                  style={pinnedRightStyles}
+                >
+                  {pinnedRightColumns.map((def: ColumnDefWithDefaults) => (
                     <HeaderCell
                       columnDef={def}
                       filterer={def.filterer}
@@ -158,29 +227,7 @@ export function Header({
                       position={positions.get(def)}
                       sorts={sorts}
                     />
-                  ),
-                )}
-              </div>
-              {pinnedRightColumns.length > 0 && (
-                <div
-                  className="mestia-header-pinned-right"
-                  style={pinnedRightStyles}
-                >
-                  {pinnedRightColumns.map(
-                    (def: ColumnDefWithDefaults) => (
-                      <HeaderCell
-                        columnDef={def}
-                        filterer={def.filterer}
-                        filters={filters}
-                        handleFilter={handleFilter}
-                        handleResize={handleColumnResize}
-                        handleSort={handleSort}
-                        key={def.field}
-                        position={positions.get(def)}
-                        sorts={sorts}
-                      />
-                    ),
-                  )}
+                  ))}
                 </div>
               )}
             </>
@@ -207,9 +254,23 @@ export function Header({
   );
 }
 
+function getColumnDepth(
+  columnDefs: ColumnDefWithDefaults[],
+  depth: number = 1,
+) {
+  let maxDepth = depth;
+  for (const def of columnDefs) {
+    if (def.subcolumns && def.subcolumns.length > 0) {
+      maxDepth = getColumnDepth(def.subcolumns, depth + 1);
+    }
+  }
+  return maxDepth;
+}
+
 function getFlattenedColumns(
   defs: ColumnDefWithDefaults[],
   weakMap: WeakMap<ColumnDefWithDefaults, Position>,
+  depth: number,
   level = 0,
   parentIndex = 0,
   ancestors: ColumnDefWithDefaults[] = [],
@@ -222,19 +283,22 @@ function getFlattenedColumns(
       const flattenedSubcolumns = getFlattenedColumns(
         def.subcolumns,
         weakMap,
+        depth,
         level + 1,
         parentIndex + columnIndex,
         ancestors.concat([def]),
       );
 
-      const lastSubcolumn: ColumnDefWithDefaults=
+      const lastSubcolumn: ColumnDefWithDefaults =
         flattenedSubcolumns[flattenedSubcolumns.length - 1];
 
       flattenedColumns.push([def, flattenedSubcolumns].flat());
       weakMap.set(def, {
         ancestors,
         columnIndex: parentIndex + columnIndex,
-        columnIndexEnd: weakMap.get(lastSubcolumn)?.columnIndex ?? parentIndex + columnIndex,
+        columnIndexEnd:
+          weakMap.get(lastSubcolumn)?.columnIndex ?? parentIndex + columnIndex,
+        depth: level + 1,
         field: def.field,
         level,
         subcolumnIndex: index,
@@ -246,6 +310,7 @@ function getFlattenedColumns(
         ancestors,
         columnIndex: parentIndex + columnIndex,
         columnIndexEnd: parentIndex + columnIndex,
+        depth,
         field: def.field,
         level,
         subcolumnIndex: index,

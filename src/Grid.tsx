@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type FC,
   type PointerEvent,
   type ReactNode,
   type RefObject,
@@ -8,7 +9,7 @@ import {
 } from "react";
 import { Body, type Cell } from "./Body";
 import { Header, type Position } from "./Header";
-import { Filter } from './Filter';
+import { Filter } from "./Filter";
 import type { SortState } from "./Sorter";
 
 export interface ColumnDef {
@@ -18,6 +19,7 @@ export interface ColumnDef {
     | ((props: { def: ColumnDefWithDefaults; position: Position }) => string);
   field: string;
   filterable?: boolean;
+  filterer?: FC;
   minWidth?: number;
   pinned?: "start" | "end";
   resizable?: boolean;
@@ -29,7 +31,7 @@ export interface ColumnDef {
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
-  filterer: ReactNode;
+  filterer: FC;
   minWidth: number;
   sortStates: SortState[];
   subcolumns: ColumnDefWithDefaults[];
@@ -141,9 +143,7 @@ export function Grid({
   const containerRef = useRef<HTMLDivElement>(null);
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const { columnGap, rowGap } =
-    typeof gap === 'number'
-      ? { columnGap: gap, rowGap: gap }
-      : gap;
+    typeof gap === "number" ? { columnGap: gap, rowGap: gap } : gap;
   const colDefs = applyColumnDefDefaults(columnDefs, columnDefDefaults);
   if (process.env.NODE_ENV === "development") {
     validateProps({
@@ -167,7 +167,13 @@ export function Grid({
   // and move this function into Body component
   return (
     <div className="cantal" ref={containerRef} style={styles?.container}>
-      {header(colDefs, leafColumns, computedStyles, headerViewportRef, canvasWidth)}
+      {header(
+        colDefs,
+        leafColumns,
+        { ...computedStyles, gridAutoRows: `minmax(${27}px, auto)` },
+        headerViewportRef,
+        canvasWidth,
+      )}
       {body(
         leafColumns,
         focusedCell,
@@ -175,7 +181,7 @@ export function Grid({
         handleFocusedCellChange,
         containerRef,
         headerViewportRef,
-        canvasWidth
+        canvasWidth,
       )}
     </div>
   );

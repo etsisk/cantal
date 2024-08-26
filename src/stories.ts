@@ -55,14 +55,14 @@ export const colDefs: ColumnDef[] = [
 
 export const groupedColumnDefs: ColumnDef[] = [
   { field: 'property', title: 'Property', subcolumns: [  { field: 'propertyId', title: 'ID', width: 90 },{ field: 'propertyName', title: 'Name', width: 250 }]},
-  { field: 'bbl', title: 'NYC Borough, Block and Lot (BBL)', width: 'max-content' },
+  { field: 'bbl', title: 'NYC Borough, Block and Lot (BBL)', width: 200 },
   {
     field: 'bin',
     title: 'NYC Building Identification Number (BIN)',
-    width: 'max-content',
+    width: 275,
   },
   { field: 'fullAddress', title: 'Address', subcolumns: [
-    { field: 'address', title: 'Street', width: 'max-content' },
+    { field: 'address', title: 'Street', width: 75 },
     { field: 'city', title: 'City', width: 100 },
     { field: 'zip', title: 'Postal Code', width: 100 },
   ]},

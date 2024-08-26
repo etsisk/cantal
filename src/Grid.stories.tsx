@@ -1,5 +1,10 @@
 import { type ChangeEvent, useState } from "react";
-import { type ColumnDef, type DataRow, Grid } from "./Grid";
+import {
+  type ColumnDef,
+  type ColumnDefWithDefaults,
+  type DataRow,
+  Grid,
+} from "./Grid";
 import type { FilterProps } from "./Filter";
 import { colDefs, data, groupedColumnDefs } from "./stories";
 
@@ -139,12 +144,7 @@ interface SelectProps extends FilterProps {
   options: { label: string; value: string }[];
 }
 
-function SelectFilterer({
-  field,
-  handleFilter,
-  options,
-  styles,
-}: SelectProps) {
+function SelectFilterer({ field, handleFilter, options, styles }: SelectProps) {
   const filterStyle = {
     display: "block",
     margin: "4px 0 0",
@@ -224,3 +224,52 @@ export function Filtering() {
     </div>
   );
 }
+
+export function ColumnResizing() {
+  const [defs, setDefs] = useState<ColumnDef[]>(
+    colDefs.map((def) => ({ ...def, resizable: true })),
+  );
+  function handleResize(
+    field: string,
+    width: number,
+    columnDefs: ColumnDefWithDefaults[],
+  ) {
+    setDefs(columnDefs);
+  }
+  return <Grid columnDefs={defs} data={data} handleResize={handleResize} />;
+}
+
+export function GroupedColumns() {
+  const [defs, setDefs] = useState(resizable(groupedColumnDefs.slice(0, 5)));
+
+  function resizable(defs: ColumnDef[]): ColumnDef[] {
+    return defs.slice(0).map((def: ColumnDef) => {
+      if (def.subcolumns && def.subcolumns?.length > 0) {
+        return {
+          ...def,
+          resizable: true,
+          subcolumns: resizable(def.subcolumns),
+        };
+      }
+      return { ...def, resizable: true };
+    });
+  }
+
+  function handleResize(
+    field: string,
+    width: number,
+    columnDefs: ColumnDefWithDefaults[],
+  ) {
+    setDefs(columnDefs);
+  }
+
+  return (
+    <Grid
+      columnDefs={defs}
+      data={data}
+      handleResize={handleResize}
+      styles={{ container: { height: 410 } }}
+    />
+  );
+};
+

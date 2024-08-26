@@ -1,7 +1,6 @@
-import { type FC, type PointerEvent, type ReactNode, useRef, useState } from "react";
+import { type FC, type PointerEvent,  useRef, useState } from "react";
 import { type ColumnDefWithDefaults } from "./Grid";
 import type { Position } from "./Header";
-import { Filter } from "./Filter";
 import { Resizer } from "./Resizer";
 import { Sorter, type SortState } from "./Sorter";
 
@@ -60,8 +59,9 @@ export function HeaderCell({
       ref={ref}
       role="columnheader"
       style={{
-        // gridArea: columnDef.field,
+        gridRowStart: position.level + 1,
         gridColumnStart: position.columnIndex + 1,
+        gridRowEnd: position.depth + 1,
         gridColumnEnd: position.columnIndexEnd + 2,
         position: columnDef.resizable ? "sticky" : "static",
       }}

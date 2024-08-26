@@ -7,6 +7,8 @@ export default {
     'grid--custom-aria-labels',
     'grid--sorting',
     'grid--filtering',
+    'grid--column-resizing',
+    'grid--grouped-columns',
   ],
 };
 

@@ -68,10 +68,7 @@
 
 .cantal-headercell-filter {
   background-color: var(--cell-background-color);
-  border-color: var(--border-color);
-  border-width: 1px;
   color: var(--cell-color);
-  display: block;
   margin: 4px 0 0;
 }
 
