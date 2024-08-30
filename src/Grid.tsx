@@ -38,6 +38,10 @@ export interface ColumnDefWithDefaults extends ColumnDef {
   width: number;
 }
 
+export interface LeafColumn extends ColumnDefWithDefaults {
+  ancestors: ColumnDefWithDefaults[];
+}
+
 export interface DataRow {
   [key: string]: unknown;
 }
@@ -53,7 +57,7 @@ interface GridProps {
     ) => void,
     containerRef: RefObject<HTMLDivElement | null>,
     headerViewportRef: RefObject<HTMLDivElement | null>,
-    canvasWidth: number,
+    canvasWidth: string,
   ) => ReactNode;
   columnDefs: ColumnDef[];
   columnSorts?: { [key: string]: string };
@@ -80,7 +84,7 @@ interface GridProps {
     leafColumns: ColumnDefWithDefaults[],
     styles: CSSProperties,
     ref: RefObject<HTMLDivElement | null>,
-    canvasWidth: number,
+    canvasWidth: string,
   ) => ReactNode;
   id?: string;
   styles?: {
@@ -89,13 +93,13 @@ interface GridProps {
 }
 export function Grid({
   body = (
-    leafColumns: ColumnDefWithDefaults[],
+    leafColumns: LeafColumn[],
     focusedCell: Cell | null,
     styles: CSSProperties,
     handleFocusedCellChange = noop,
     containerRef: RefObject<HTMLDivElement | null>,
     headerViewportRef: RefObject<HTMLDivElement | null>,
-    canvasWidth: number,
+    canvasWidth: string,
   ) => (
     <Body
       canvasWidth={canvasWidth}
@@ -120,10 +124,10 @@ export function Grid({
   handleSort = noop,
   header = (
     colDefs: ColumnDefWithDefaults[],
-    leafColumns: ColumnDefWithDefaults[],
+    leafColumns: LeafColumn[],
     styles,
     ref: RefObject<HTMLDivElement | null>,
-    canvasWidth: number,
+    canvasWidth: string,
   ) => (
     <Header
       canvasWidth={canvasWidth}
@@ -155,16 +159,15 @@ export function Grid({
     });
   }
   const leafColumns = getLeafColumns(colDefs);
-  const gridTemplateColumns = getColumnWidths(leafColumns);
-  const canvasWidth = getGridCanvasWidth(leafColumns, columnGap);
+  const orderedLeafColumns = pinColumns(leafColumns);
+  const gridTemplateColumns = getColumnWidths(orderedLeafColumns);
+  const canvasWidth = getGridCanvasWidth(orderedLeafColumns, columnGap);
   const computedStyles = {
     columnGap,
     gridTemplateColumns,
     rowGap,
   };
 
-  // QUESTION: Pass `headerViewportRef` to Body component
-  // and move this function into Body component
   return (
     <div className="cantal" ref={containerRef} style={styles?.container}>
       {header(
@@ -190,7 +193,7 @@ export function Grid({
 const MIN_COLUMN_WIDTH = 70;
 const DEFAULT_COLUMN_WIDTH = 100;
 
-// QUESTION: Avoid setting minWidth, width for columns with subcolumns
+// QUESTION: Avoid setting minWidth, width for columns with subcolumns?
 const columnDefDefaults = {
   ariaHeaderCellLabel: ({ position }: { position: Position }) =>
     `Column ${position.columnIndex}${
@@ -239,15 +242,60 @@ function applyColumnDefDefaults(
   });
 }
 
-export function getLeafColumns(
-  defs: ColumnDefWithDefaults[],
-): ColumnDefWithDefaults[] {
-  return defs.flatMap((def) => {
-    if (def.subcolumns && def.subcolumns.length > 0) {
-      return getLeafColumns(def.subcolumns).flat();
-    }
-    return [def];
-  });
+// export function getLeafColumns(
+//   defs: ColumnDefWithDefaults[],
+// ): ColumnDefWithDefaults[] {
+//   return defs.flatMap((def) => {
+//     if (def.subcolumns && def.subcolumns.length > 0) {
+//       return getLeafColumns(def.subcolumns).flat();
+//     }
+//     return [def];
+//   });
+// }
+
+// TODO: Expose API to consumers
+export function getLeafColumns(columnDefs: ColumnDefWithDefaults[], ancestors: ColumnDefWithDefaults[] = []): LeafColumn[] {
+  return columnDefs
+    .map((def) => {
+      if (def.subcolumns && def.subcolumns.length > 0) {
+        const parents = [...ancestors, def];
+        return getLeafColumns(def.subcolumns, parents);
+      }
+      // throw column def warning if def.pinned is something other than 'start', 'end', undefined
+      if (ancestors.length > 0) {
+        const parent = ancestors.at(-1);
+        if (parent.subcolumns.some((d) => d.pinned !== def.pinned)) {
+          return {
+            ...def,
+            ancestors: ancestors.toSpliced(-1, 1, {
+              ...parent,
+              subcolumns: parent.subcolumns.filter(
+                (d) => d.pinned === def.pinned,
+              ),
+            }),
+          };
+        }
+      }
+      return { ...def, ancestors };
+    })
+    .flat();
+}
+
+// QUESTION: Expose API to consumers?
+function pinColumns(columnDefs: LeafColumn[]): LeafColumn[] {
+    return columnDefs.toSorted((a: LeafColumn, b: LeafColumn) =>
+    a.pinned === b.pinned
+      ? 0
+      : a.pinned === 'start'
+        ? -1
+        : a.pinned === 'end'
+          ? 1
+          : !['start', 'end'].includes(a.pinned) && b.pinned === 'start'
+            ? 1
+            : !['start', 'end'].includes(a.pinned) && b.pinned === 'end'
+              ? -1
+              : 0,
+  );
 }
 
 function getColumnWidths(leafColumns: ColumnDefWithDefaults[]): string {
@@ -265,7 +313,7 @@ function getColumnWidths(leafColumns: ColumnDefWithDefaults[]): string {
 export function getGridCanvasWidth(
   leafColumns: ColumnDefWithDefaults[],
   columnGap: number,
-) {
+): string {
   const endBoundary = getColumnEndBoundary(
     leafColumns.length - 1,
     leafColumns,

@@ -9,6 +9,7 @@ export default {
     'grid--filtering',
     'grid--column-resizing',
     'grid--grouped-columns',
+    'grid--pinned-columns',
   ],
 };
 

@@ -1,8 +1,9 @@
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import {
   type ColumnDef,
   type ColumnDefWithDefaults,
   type DataRow,
+  getLeafColumns,
   Grid,
 } from "./Grid";
 import type { FilterProps } from "./Filter";
@@ -264,12 +265,121 @@ export function GroupedColumns() {
   }
 
   return (
-    <Grid
-      columnDefs={defs}
-      data={data}
-      handleResize={handleResize}
-      styles={{ container: { height: 410 } }}
-    />
+    <>
+      <ul>
+        <li>Fix grid-row-end, grid-column-end</li>
+      </ul>
+      <Grid
+        columnDefs={defs}
+        data={data}
+        handleResize={handleResize}
+        styles={{ container: { height: 410 } }}
+      />
+    </>
   );
-};
+}
 
+export function PinnedColumns() {
+  const ref = useRef<HTMLFormElement>(null);
+  const [selected, setSelected] = useState("");
+  const [pinned, setPinned] = useState({});
+  const defs = groupedColumnDefs.slice(0, 5).map((gc, i) =>
+    gc.subcolumns?.length
+      ? {
+          ...gc,
+          subcolumns:
+            gc.subcolumns?.map((sc) =>
+              Object.keys(pinned).includes(sc.field)
+                ? { ...sc, pinned: pinned[sc.field] }
+                : sc,
+            ) ?? [],
+        }
+      : Object.keys(pinned).includes(gc.field)
+      ? { ...gc, pinned: pinned[gc.field] }
+      : gc,
+  );
+
+  return (
+    <div>
+      <form ref={ref}>
+        <label htmlFor="select">Choose a column to pin:</label>
+        <select
+          id="select"
+          onChange={(e) => setSelected(e.target.value)}
+          style={{ display: "block" }}
+          value={selected}
+        >
+          <option value="" />
+          {getLeafColumns(defs).map((def) => (
+            <option key={def.field} value={def.field}>
+              {def.title}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={selected === ""}
+          onClick={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "start" }));
+            if (ref.current) {
+              setSelected("");
+              ref.current?.reset();
+            }
+          }}
+          type="button"
+        >
+          Left
+        </button>
+        <button
+          disabled={selected === ""}
+          onClick={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "end" }));
+            setSelected("");
+            ref.current?.reset();
+          }}
+          type="button"
+        >
+          Right
+        </button>
+        <button
+          disabled={
+            !Object.keys(pinned).includes(selected) ||
+            Object.keys(pinned).length === 0
+          }
+          onClick={() => {
+            setPinned((prev) =>
+              Object.keys(prev)
+                .filter((key) => key !== selected)
+                .reduce(
+                  (obj, key) => ({
+                    ...obj,
+                    [key]: prev[key as keyof typeof prev],
+                  }),
+                  {},
+                ),
+            );
+            setSelected("");
+            ref.current?.reset();
+          }}
+          type="button"
+        >
+          Unpin
+        </button>
+      </form>
+      <h3>TODO</h3>
+      <ul>
+        <li>Render ancestors of pinned leaf columns</li>
+        <li>
+          Merge ancestors when all descendants are pinned next to each other
+        </li>
+        <li>Ensure `columnIndex`, `columnIndexEnd` are properly set</li>
+        <li>Figure out why position sticky only works in Firefox</li>
+      </ul>
+      <br />
+      <Grid
+        columnDefs={defs}
+        data={data}
+        styles={{ container: { height: 500, width: 1100 } }}
+      />
+    </div>
+  );
+}

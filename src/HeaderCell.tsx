@@ -46,7 +46,9 @@ export function HeaderCell({
     }
     return columnDef.width;
   }
-
+  if (columnDef.field === 'fullAddress') {
+    console.log(position);
+  }
   return (
     <div
       aria-label={
@@ -62,7 +64,7 @@ export function HeaderCell({
         gridRowStart: position.level + 1,
         gridColumnStart: position.columnIndex + 1,
         gridRowEnd: position.depth + 1,
-        gridColumnEnd: position.columnIndexEnd + 2,
+        gridColumnEnd: position.columnIndexEnd + 1,
         position: columnDef.resizable ? "sticky" : "static",
       }}
     >

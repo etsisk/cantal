@@ -15,6 +15,11 @@
   display: inline flow-root;
 }
 
+.cantal-header-viewport,
+.cantal-body-viewport {
+  position: relative; /* Required for pinning columns */
+}
+
 .cantal-header,
 .cantal-body {
   background-color: var(--background-color);

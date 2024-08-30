@@ -15,7 +15,7 @@ export interface Cell {
 }
 
 interface BodyProps {
-  canvasWidth: number;
+  canvasWidth: string;
   containerRef: RefObject<HTMLDivElement | null>;
   data: any[];
   focusedCell: Cell | null;
@@ -49,6 +49,7 @@ export function Body({
       }px`;
     }
   }, []);
+  // QUESTION: Pass these values down to avoid duplicate work?
   const pinnedLeftColumns = leafColumns.filter((lc) => lc.pinned === "start");
   const pinnedRightColumns = leafColumns.filter((lc) => lc.pinned === "end");
   const unpinnedColumns = leafColumns.filter(
