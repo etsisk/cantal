@@ -265,17 +265,12 @@ export function GroupedColumns() {
   }
 
   return (
-    <>
-      <ul>
-        <li>Fix grid-row-end, grid-column-end</li>
-      </ul>
-      <Grid
-        columnDefs={defs}
-        data={data}
-        handleResize={handleResize}
-        styles={{ container: { height: 410 } }}
-      />
-    </>
+    <Grid
+      columnDefs={defs}
+      data={data}
+      handleResize={handleResize}
+      styles={{ container: { height: 410 } }}
+    />
   );
 }
 
@@ -367,12 +362,10 @@ export function PinnedColumns() {
       </form>
       <h3>TODO</h3>
       <ul>
-        <li>Render ancestors of pinned leaf columns</li>
-        <li>
-          Merge ancestors when all descendants are pinned next to each other
-        </li>
+        <li>Fix grid-row-end, grid-column-end (when pinning occurs)</li>
         <li>Ensure `columnIndex`, `columnIndexEnd` are properly set</li>
         <li>Figure out why position sticky only works in Firefox</li>
+        <li>Apply pinned columns to body component</li>
       </ul>
       <br />
       <Grid
