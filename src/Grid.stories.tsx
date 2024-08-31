@@ -364,7 +364,7 @@ export function PinnedColumns() {
       <ul>
         <li>Fix grid-row-end, grid-column-end (when pinning occurs)</li>
         <li>Ensure `columnIndex`, `columnIndexEnd` are properly set</li>
-        <li>Figure out why position sticky only works in Firefox</li>
+        <li>Avoid multiple copies of ancestors from rendering (when all subcolumns aren't split)</li>
         <li>Apply pinned columns to body component</li>
       </ul>
       <br />

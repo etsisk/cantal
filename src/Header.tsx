@@ -1,6 +1,5 @@
 import type { CSSProperties, PointerEvent } from "react";
 import {
-  ColumnDef,
   type ColumnDefWithDefaults,
   getLeafColumns,
   type LeafColumn,
@@ -16,6 +15,8 @@ export interface Position {
   depth: number;
   field: string;
   level: number;
+  pinnedIndex: number;
+  pinnedIndexEnd: number;
   subcolumnIndex: number;
 }
 
@@ -53,10 +54,6 @@ export function Header({
 }: HeaderProps) {
   const maxDepth = getColumnDepth(leafColumns);
   const positions = getColumnPositions(leafColumns, maxDepth);
-  // const positions = new WeakMap();
-  // const flattenedColumns = flattenColumns(columnDefs, positions, maxDepth);
-
-  // TODO: Include Ancenstors and properly define their columnIndex, columnIndexEnd
   const pinnedStartColumns = leafColumns.filter(
     (def) => def.pinned === "start",
   );
@@ -66,12 +63,12 @@ export function Header({
   const pinnedEndColumns = leafColumns.filter((def) => def.pinned === "end");
 
   function handleColumnResize(
-    columnDef: LeafColumn,
+    columnDef: LeafColumn | ColumnDefWithDefaults,
     columnWidth: number,
     delta: number,
-  ) {
+  ): void {
     if (columnDef.subcolumns && columnDef.subcolumns.length > 0) {
-      const childLeafColumns = getLeafColumns(columnDef.subcolumns);
+      const childLeafColumns = getLeafColumns([columnDef]);
       const totalLeafColWidth = childLeafColumns
         .map((col) => col.width)
         .reduce((a, b) => a + b, 0);
@@ -103,16 +100,17 @@ export function Header({
 
   function replaceColumn(
     columnDefs: ColumnDefWithDefaults[],
-    existingLeafColumn: LeafColumn,
-    newLeafColumn: LeafColumn,
+    existingLeafColumn: LeafColumn | ColumnDefWithDefaults,
+    newLeafColumn: LeafColumn | ColumnDefWithDefaults,
   ): ColumnDefWithDefaults[] {
     const colDefs = [];
-    const { ancestors, ...newDef } = newLeafColumn;
+    const newDef = getColumnDefWithDefaults(newLeafColumn);
+
     for (let def of columnDefs) {
       if (def.field === existingLeafColumn.field) {
         colDefs.push(newDef);
       } else if (
-        existingLeafColumn.ancestors
+        isLeafColumn(existingLeafColumn) && existingLeafColumn.ancestors
           .map((ancestor: ColumnDefWithDefaults) => ancestor.field)
           .includes(def.field)
       ) {
@@ -129,6 +127,18 @@ export function Header({
       }
     }
     return colDefs;
+  }
+
+  function getColumnDefWithDefaults(def: LeafColumn | ColumnDefWithDefaults): ColumnDefWithDefaults {
+    if (isLeafColumn(def)) {
+      const { ancestors, ...columnDefWithDefaults } = def;
+      return columnDefWithDefaults;
+    }
+    return def;
+  }
+
+  function isLeafColumn(def: LeafColumn | ColumnDefWithDefaults): def is LeafColumn {
+    return Object.hasOwn(def, 'ancestors');
   }
 
   const viewportStyles = {
@@ -170,8 +180,6 @@ export function Header({
     }`,
   };
 
-  console.log({ leafColumns });
-  console.log({ positions });
   return (
     <div className="cantal-header-viewport" ref={ref} style={viewportStyles}>
       <div className="cantal-header-canvas" style={canvasStyles}>
@@ -291,8 +299,14 @@ function getColumnPositions(
   columnDepth: number,
 ): WeakMap<LeafColumn, Position> {
   const wm = new WeakMap();
-  let columnIndex = 0;
+  let columnIndex = 1;
+  let pinnedIndex = 1;
+  let pinned: 'start' | 'end' | undefined;
   for (let def of leafColumns) {
+    if (columnIndex > 1 && pinned !== def.pinned) {
+      pinnedIndex = 1;
+    }
+
     for (let i = 0; i < def.ancestors.length; i++) {
       const ancestor = def.ancestors[i];
       const lineage = def.ancestors.slice(0, i);
@@ -305,6 +319,8 @@ function getColumnPositions(
           field: ancestor.field,
           depth: i + 1,
           level: i,
+          pinnedIndex,
+          pinnedIndexEnd: pinnedIndex + (ancestor.subcolumns?.length ?? 0),
           subcolumnIndex:
             lineage
               .at(-1)
@@ -312,6 +328,7 @@ function getColumnPositions(
         });
       }
     }
+
     wm.set(def, {
       ancestors: def.ancestors,
       columnIndex,
@@ -319,11 +336,16 @@ function getColumnPositions(
       depth: columnDepth,
       field: def.field,
       level: def.ancestors.length,
+      pinnedIndex,
+      pinnedIndexEnd: pinnedIndex + 1,
       subcolumnIndex:
         def.ancestors
           .at(-1)
           ?.subcolumns?.findIndex((d) => d.field === def.field) ?? 0,
     });
+
+    pinned = def.pinned;
+    pinnedIndex++;
     columnIndex++;
   }
   return wm;

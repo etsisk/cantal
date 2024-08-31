@@ -35,20 +35,18 @@ export function HeaderCell({
   const [width, setWidth] = useState<number>(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  function handleColumnResize(xDelta: number) {
+  function handleColumnResize(xDelta: number): void {
     const columnWidth = getColumnWidth();
     handleResize(columnDef, columnWidth, xDelta);
   }
 
-  function getColumnWidth() {
+  function getColumnWidth(): number {
     if (typeof columnDef.width === "string") {
       return width;
     }
     return columnDef.width;
   }
-  if (columnDef.field === 'fullAddress') {
-    console.log(position);
-  }
+
   return (
     <div
       aria-label={
@@ -62,9 +60,9 @@ export function HeaderCell({
       role="columnheader"
       style={{
         gridRowStart: position.level + 1,
-        gridColumnStart: position.columnIndex + 1,
+        gridColumnStart: position.pinnedIndex,
         gridRowEnd: position.depth + 1,
-        gridColumnEnd: position.columnIndexEnd + 1,
+        gridColumnEnd: position.pinnedIndexEnd,
         position: columnDef.resizable ? "sticky" : "static",
       }}
     >
