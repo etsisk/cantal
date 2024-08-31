@@ -172,13 +172,13 @@ export function Grid({
     <div className="cantal" ref={containerRef} style={styles?.container}>
       {header(
         colDefs,
-        leafColumns,
+        orderedLeafColumns,
         { ...computedStyles, gridAutoRows: `minmax(${27}px, auto)` },
         headerViewportRef,
         canvasWidth,
       )}
       {body(
-        leafColumns,
+        orderedLeafColumns,
         focusedCell,
         computedStyles,
         handleFocusedCellChange,
