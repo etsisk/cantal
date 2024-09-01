@@ -7,7 +7,8 @@ import {
   useEffect,
   useRef,
 } from "react";
-import type { ColumnDefWithDefaults } from "./Grid";
+import { Cell } from "./Cell";
+import type { ColumnDefWithDefaults, LeafColumn, Position } from "./Grid";
 
 export interface Cell {
   columnIndex: number;
@@ -22,6 +23,7 @@ interface BodyProps {
   handleFocusedCellChange: (focusCell: Cell, e: SyntheticEvent) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: ColumnDefWithDefaults[];
+  positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   styles: CSSProperties;
 }
 
@@ -33,9 +35,11 @@ export function Body({
   handleFocusedCellChange,
   headerViewportRef,
   leafColumns,
+  positions,
   styles,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (viewportRef.current) {
       const boxSizing =
@@ -49,10 +53,13 @@ export function Body({
       }px`;
     }
   }, []);
+
   // QUESTION: Pass these values down to avoid duplicate work?
-  const pinnedLeftColumns = leafColumns.filter((lc) => lc.pinned === "start");
-  const pinnedRightColumns = leafColumns.filter((lc) => lc.pinned === "end");
-  const unpinnedColumns = leafColumns.filter(
+  const pinnedStartLeafColumns = leafColumns.filter(
+    (lc) => lc.pinned === "start",
+  );
+  const pinnedEndLeafColumns = leafColumns.filter((lc) => lc.pinned === "end");
+  const unpinnedLeafColumns = leafColumns.filter(
     (lc) => lc.pinned !== "start" && lc.pinned !== "end",
   );
 
@@ -80,6 +87,32 @@ export function Body({
     width: canvasWidth,
   };
 
+  const pinnedStyles = {
+    ...styles,
+    backgroundColor: 'var(--background-color)',
+    display: 'grid',
+    gridTemplateColumns: 'subgrid',
+    insetInline: 0,
+    position: 'sticky',
+  }
+
+  const pinnedStartStyles = {
+    ...pinnedStyles,
+    gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
+  };
+
+  const unpinnedStyles = {
+    ...styles,
+    display: 'grid',
+    gridColumn: `${pinnedStartLeafColumns.length + 1} / ${leafColumns.length - pinnedEndLeafColumns.length + 1}`,
+    gridTemplateColumns: 'subgrid',
+  };
+
+  const pinnedEndStyles = {
+    ...pinnedStyles,
+    gridColumn: `${leafColumns.length - pinnedEndLeafColumns.length + 1} / ${leafColumns.length + 1}`,
+  }
+
   return (
     <div
       className="cantal-body-viewport"
@@ -103,84 +136,85 @@ export function Body({
             ...styles,
           }}
         >
-          {pinnedLeftColumns.length > 0 || pinnedRightColumns > 0 ? (
+          {pinnedStartLeafColumns.length > 0 || pinnedEndLeafColumns.length > 0 ? (
             <>
-              {pinnedLeftColumns.length > 0 && (
-                <div className="cantal-body-pinned-left">
+              {pinnedStartLeafColumns.length > 0 && (
+                <div className="cantal-body-pinned-start" style={pinnedStartStyles}>
                   {data.map((row, rowIndex) => {
-                    return pinnedLeftColumns.map((columnDef, columnIndex) => {
-                      const isFocused =
-                        focusedCell?.rowIndex === rowIndex &&
-                        focusedCell?.columnIndex === columnIndex;
-                      return (
-                        <div
-                          aria-label={columnDef.ariaCellLabel}
-                          className={`cantal-cell-base cantal-cell-pinned-start${
-                            isFocused ? " cantal-cell-focused" : ""
-                          }`}
-                          data-col-idx={columnIndex}
-                          data-row-idx={rowIndex}
-                          key={`${rowIndex}-${columnIndex}`}
-                          role="gridcell"
-                        >
-                          {row[columnDef.field]}
-                        </div>
-                      );
-                    });
+                    return pinnedStartLeafColumns.map(
+                      (columnDef, columnIndex) => {
+                        const isFocused =
+                          focusedCell?.rowIndex === rowIndex &&
+                          focusedCell?.columnIndex === columnIndex;
+                        return (
+                          <Cell
+                            columnDef={columnDef}
+                            columnIndex={columnIndex}
+                            isFocused={isFocused}
+                            key={`${rowIndex}-${columnIndex}`}
+                            position={positions.get(columnDef)}
+                            rowIndex={rowIndex}
+                          >
+                            {row[columnDef.field]}
+                          </Cell>
+                        );
+                      },
+                    );
                   })}
                 </div>
               )}
-              <div className="cantal-body-unpinned">
-                {unpinnedColumns.length > 0 &&
+              <div className="cantal-body-unpinned" style={unpinnedStyles}>
+                {unpinnedLeafColumns.length > 0 &&
                   data.map((row, rowIndex) => {
-                    return unpinnedColumns.map((columnDef, colIndex) => {
-                      const columnIndex = colIndex + pinnedLeftColumns.length;
+                    return unpinnedLeafColumns.map((columnDef, columnIndex) => {
+                      // TODO: Can we avoid 'colIndex' calculation?
+                      const colIndex =
+                        columnIndex + pinnedStartLeafColumns.length;
                       const isFocused =
                         focusedCell?.rowIndex === rowIndex &&
-                        focusedCell?.columnIndex === columnIndex;
+                        focusedCell?.columnIndex === colIndex;
                       return (
-                        <div
-                          aria-label={columnDef.ariaCellLabel}
-                          className={`cantal-cell-base${
-                            isFocused ? " cantal-cell-focused" : ""
-                          }`}
-                          data-col-idx={columnIndex}
-                          data-row-idx={rowIndex}
-                          key={`${rowIndex}-${columnIndex}`}
-                          role="gridcell"
+                        <Cell
+                          columnDef={columnDef}
+                          columnIndex={colIndex}
+                          isFocused={isFocused}
+                          key={`${rowIndex}-${colIndex}`}
+                          position={positions.get(columnDef)}
+                          rowIndex={rowIndex}
                         >
                           {row[columnDef.field]}
-                        </div>
+                        </Cell>
                       );
                     });
                   })}
               </div>
-              {pinnedRightColumns.length > 0 && (
-                <div className="cantal-body-pinned-right">
+              {pinnedEndLeafColumns.length > 0 && (
+                <div className="cantal-body-pinned-end" style={pinnedEndStyles}>
                   {data.map((row, rowIndex) => {
-                    return pinnedRightColumns.map((columnDef, colIndex) => {
-                      const columnIndex =
-                        colIndex +
-                        pinnedLeftColumns.length +
-                        unpinnedColumns.length;
-                      const isFocused =
-                        focusedCell?.rowIndex === rowIndex &&
-                        focusedCell?.columnIndex === columnIndex;
-                      return (
-                        <div
-                          aria-label={columnDef.ariaCellLabel}
-                          className={`cantal-cell-base cantal-cell-pinned-end${
-                            isFocused ? " cantal-cell-focused" : ""
-                          }`}
-                          data-col-idx={columnIndex}
-                          data-row-idx={rowIndex}
-                          key={`${rowIndex}-${columnIndex}`}
-                          role="gridcell"
-                        >
-                          {row[columnDef.field]}
-                        </div>
-                      );
-                    });
+                    return pinnedEndLeafColumns.map(
+                      (columnDef, columnIndex) => {
+                        // TODO: Can we avoid 'colIndex' calculation?
+                        const colIndex =
+                          columnIndex +
+                          pinnedStartLeafColumns.length +
+                          unpinnedLeafColumns.length;
+                        const isFocused =
+                          focusedCell?.rowIndex === rowIndex &&
+                          focusedCell?.columnIndex === colIndex;
+                        return (
+                          <Cell
+                            columnDef={columnDef}
+                            columnIndex={colIndex}
+                            isFocused={isFocused}
+                            key={`${rowIndex}-${colIndex}`}
+                            position={positions.get(columnDef)}
+                            rowIndex={rowIndex}
+                          >
+                            {row[columnDef.field]}
+                          </Cell>
+                        );
+                      },
+                    );
                   })}
                 </div>
               )}
@@ -188,24 +222,21 @@ export function Body({
           ) : (
             <>
               {data.map((row, rowIndex) => {
-                return unpinnedColumns.map((columnDef, colIndex) => {
-                  const columnIndex = colIndex + pinnedLeftColumns.length;
+                return unpinnedLeafColumns.map((columnDef, columnIndex) => {
                   const isFocused =
                     focusedCell?.rowIndex === rowIndex &&
                     focusedCell?.columnIndex === columnIndex;
                   return (
-                    <div
-                      aria-label={columnDef.ariaCellLabel}
-                      className={`cantal-cell-base${
-                        isFocused ? " cantal-cell-focused" : ""
-                      }`}
-                      data-col-idx={columnIndex}
-                      data-row-idx={rowIndex}
+                    <Cell
+                      columnDef={columnDef}
+                      columnIndex={columnIndex}
                       key={`${rowIndex}-${columnIndex}`}
-                      role="gridcell"
+                      isFocused={isFocused}
+                      position={positions.get(columnDef)}
+                      rowIndex={rowIndex}
                     >
                       {row[columnDef.field]}
-                    </div>
+                    </Cell>
                   );
                 });
               })}

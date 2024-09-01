@@ -8,7 +8,7 @@ import {
   useRef,
 } from "react";
 import { Body, type Cell } from "./Body";
-import { Header, type Position } from "./Header";
+import { Header } from "./Header";
 import { Filter } from "./Filter";
 import type { SortState } from "./Sorter";
 
@@ -31,6 +31,9 @@ export interface ColumnDef {
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
+  // TODO: Expand ariaLabel types to include functions
+  ariaCellLabel: string;
+  ariaHeaderCellLabel: string;
   filterer: FC;
   minWidth: number;
   sortStates: SortState[];
@@ -42,6 +45,20 @@ export interface LeafColumn extends ColumnDefWithDefaults {
   ancestors: ColumnDefWithDefaults[];
 }
 
+// QUESTION: add subcolumns property?
+// Could be useful for resizing (knowing if it's a leaf column or an ancestor)
+export interface Position {
+  ancestors: ColumnDefWithDefaults[];
+  columnIndex: number;
+  columnIndexEnd: number;
+  depth: number;
+  field: string;
+  level: number;
+  pinnedIndex: number;
+  pinnedIndexEnd: number;
+  subcolumnIndex: number;
+}
+
 export interface DataRow {
   [key: string]: unknown;
 }
@@ -49,6 +66,7 @@ export interface DataRow {
 interface GridProps {
   body?: (
     leafColumns: ColumnDefWithDefaults[],
+    positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     focusedCell: Cell | null,
     styles: CSSProperties,
     handleFocusedCellChange: (
@@ -82,6 +100,7 @@ interface GridProps {
   header?: (
     colDefs: ColumnDefWithDefaults[],
     leafColumns: ColumnDefWithDefaults[],
+    positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     styles: CSSProperties,
     ref: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
@@ -94,6 +113,7 @@ interface GridProps {
 export function Grid({
   body = (
     leafColumns: LeafColumn[],
+    positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     focusedCell: Cell | null,
     styles: CSSProperties,
     handleFocusedCellChange = noop,
@@ -109,6 +129,7 @@ export function Grid({
       handleFocusedCellChange={handleFocusedCellChange}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
+      positions={positions}
       styles={styles}
     />
   ),
@@ -125,6 +146,7 @@ export function Grid({
   header = (
     colDefs: ColumnDefWithDefaults[],
     leafColumns: LeafColumn[],
+    positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     styles,
     ref: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
@@ -137,6 +159,7 @@ export function Grid({
       handleResize={handleResize}
       handleSort={handleSort}
       leafColumns={leafColumns}
+      positions={positions}
       ref={ref}
       sorts={columnSorts}
       styles={styles}
@@ -160,6 +183,8 @@ export function Grid({
   }
   const leafColumns = getLeafColumns(colDefs);
   const orderedLeafColumns = pinColumns(leafColumns);
+  const maxDepth = getColumnDepth(leafColumns);
+  const positions = getColumnPositions(orderedLeafColumns, maxDepth);
   const gridTemplateColumns = getColumnWidths(orderedLeafColumns);
   const canvasWidth = getGridCanvasWidth(orderedLeafColumns, columnGap);
   const computedStyles = {
@@ -173,12 +198,14 @@ export function Grid({
       {header(
         colDefs,
         orderedLeafColumns,
+        positions,
         { ...computedStyles, gridAutoRows: `minmax(${27}px, auto)` },
         headerViewportRef,
         canvasWidth,
       )}
       {body(
         orderedLeafColumns,
+        positions,
         focusedCell,
         computedStyles,
         handleFocusedCellChange,
@@ -195,6 +222,17 @@ const DEFAULT_COLUMN_WIDTH = 100;
 
 // QUESTION: Avoid setting minWidth, width for columns with subcolumns?
 const columnDefDefaults = {
+  ariaCellLabel: ({
+    def,
+    position,
+  }: {
+    def: ColumnDefWithDefaults;
+    position: Position;
+  }): string =>
+    `Column ${position.columnIndex + 1}${
+      ["start", "end"].includes(def.pinned) ? ", pinned" : ""
+    }${def.title ? `, ${def.title}` : ""}`,
+  // TODO: Add 'pinned' to header aria label
   ariaHeaderCellLabel: ({ position }: { position: Position }) =>
     `Column ${position.columnIndex}${
       position.ancestors.length ? ", " : ""
@@ -254,14 +292,17 @@ function applyColumnDefDefaults(
 // }
 
 // TODO: Expose API to consumers
-export function getLeafColumns(columnDefs: ColumnDefWithDefaults[], ancestors: ColumnDefWithDefaults[] = []): LeafColumn[] {
+export function getLeafColumns(
+  columnDefs: ColumnDefWithDefaults[],
+  ancestors: ColumnDefWithDefaults[] = [],
+): LeafColumn[] {
   return columnDefs
     .map((def) => {
       if (def.subcolumns && def.subcolumns.length > 0) {
         const parents = [...ancestors, def];
         return getLeafColumns(def.subcolumns, parents);
       }
-      // throw column def warning if def.pinned is something other than 'start', 'end', undefined
+      // TODO: throw column def warning if def.pinned is something other than 'start', 'end', undefined
       if (ancestors.length > 0) {
         const parent = ancestors.at(-1);
         if (parent.subcolumns.some((d) => d.pinned !== def.pinned)) {
@@ -283,19 +324,82 @@ export function getLeafColumns(columnDefs: ColumnDefWithDefaults[], ancestors: C
 
 // QUESTION: Expose API to consumers?
 function pinColumns(columnDefs: LeafColumn[]): LeafColumn[] {
-    return columnDefs.toSorted((a: LeafColumn, b: LeafColumn) =>
+  return columnDefs.toSorted((a: LeafColumn, b: LeafColumn) =>
     a.pinned === b.pinned
       ? 0
-      : a.pinned === 'start'
-        ? -1
-        : a.pinned === 'end'
-          ? 1
-          : !['start', 'end'].includes(a.pinned) && b.pinned === 'start'
-            ? 1
-            : !['start', 'end'].includes(a.pinned) && b.pinned === 'end'
-              ? -1
-              : 0,
+      : a.pinned === "start"
+      ? -1
+      : a.pinned === "end"
+      ? 1
+      : !["start", "end"].includes(a.pinned) && b.pinned === "start"
+      ? 1
+      : !["start", "end"].includes(a.pinned) && b.pinned === "end"
+      ? -1
+      : 0,
   );
+}
+
+function getColumnDepth(leafColumns: LeafColumn[]): number {
+  return leafColumns.reduce((depth, leafColumn) => {
+    return Math.max(depth, leafColumn.ancestors.length + 1);
+  }, 1);
+}
+
+function getColumnPositions(
+  leafColumns: LeafColumn[],
+  columnDepth: number,
+): WeakMap<LeafColumn | ColumnDefWithDefaults, Position> {
+  const positions = new WeakMap();
+  let columnIndex = 1;
+  let pinnedIndex = 1;
+  let pinned: "start" | "end" | undefined;
+  for (let def of leafColumns) {
+    if (columnIndex > 1 && pinned !== def.pinned) {
+      pinnedIndex = 1;
+    }
+
+    for (let i = 0; i < def.ancestors.length; i++) {
+      const ancestor = def.ancestors[i];
+      const lineage = def.ancestors.slice(0, i);
+      const meta = positions.get(ancestor);
+      if (!meta) {
+        positions.set(ancestor, {
+          ancestors: lineage,
+          columnIndex,
+          columnIndexEnd: columnIndex + (ancestor.subcolumns?.length ?? 0),
+          field: ancestor.field,
+          depth: i + 1,
+          level: i,
+          pinnedIndex,
+          pinnedIndexEnd: pinnedIndex + (ancestor.subcolumns?.length ?? 0),
+          subcolumnIndex:
+            lineage
+              .at(-1)
+              ?.subcolumns?.findIndex((d) => d.field === ancestor.field) ?? 0,
+        });
+      }
+    }
+
+    positions.set(def, {
+      ancestors: def.ancestors,
+      columnIndex,
+      columnIndexEnd: columnIndex,
+      depth: columnDepth,
+      field: def.field,
+      level: def.ancestors.length,
+      pinnedIndex,
+      pinnedIndexEnd: pinnedIndex + 1,
+      subcolumnIndex:
+        def.ancestors
+          .at(-1)
+          ?.subcolumns?.findIndex((d) => d.field === def.field) ?? 0,
+    });
+
+    pinned = def.pinned;
+    pinnedIndex++;
+    columnIndex++;
+  }
+  return positions;
 }
 
 function getColumnWidths(leafColumns: ColumnDefWithDefaults[]): string {

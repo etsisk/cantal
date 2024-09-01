@@ -3,22 +3,9 @@ import {
   type ColumnDefWithDefaults,
   getLeafColumns,
   type LeafColumn,
+  type Position,
 } from "./Grid";
 import { HeaderCell } from "./HeaderCell";
-
-// QUESTION: add subcolumns property?
-// Could be useful for resizing (knowing if it's a leaf column or an ancestor)
-export interface Position {
-  ancestors: ColumnDefWithDefaults[];
-  columnIndex: number;
-  columnIndexEnd: number;
-  depth: number;
-  field: string;
-  level: number;
-  pinnedIndex: number;
-  pinnedIndexEnd: number;
-  subcolumnIndex: number;
-}
 
 interface HeaderProps {
   canvasWidth: string;
@@ -36,6 +23,7 @@ interface HeaderProps {
     e: PointerEvent<HTMLButtonElement>,
   ) => void;
   leafColumns: LeafColumn[];
+  positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   ref: { current: any };
   styles: CSSProperties;
 }
@@ -48,12 +36,11 @@ export function Header({
   handleResize,
   handleSort,
   leafColumns,
+  positions,
   ref,
   sorts,
   styles,
 }: HeaderProps) {
-  const maxDepth = getColumnDepth(leafColumns);
-  const positions = getColumnPositions(leafColumns, maxDepth);
   const pinnedStartLeafColumns = leafColumns.filter(
     (def) => def.pinned === "start",
   );
@@ -159,6 +146,7 @@ export function Header({
     position: "sticky",
   };
 
+  // TODO: Update naming Left => Start, Right => End
   const pinnedLeftStyles = {
     ...pinnedStyles,
     gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
@@ -191,7 +179,7 @@ export function Header({
                   className="cantal-header-pinned-left"
                   style={pinnedLeftStyles}
                 >
-                  {getFlattendColumns(pinnedStartLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(pinnedStartLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -208,7 +196,7 @@ export function Header({
               )}
               {unpinnedLeafColumns.length > 0 && (
                 <div className="cantal-header-unpinned" style={unpinnedStyles}>
-                  {getFlattendColumns(unpinnedLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(unpinnedLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -228,7 +216,7 @@ export function Header({
                   className="mestia-header-pinned-right"
                   style={pinnedRightStyles}
                 >
-                  {getFlattendColumns(pinnedEndLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(pinnedEndLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -282,70 +270,7 @@ export function Header({
 //   return maxDepth;
 // }
 
-function getColumnDepth(leafColumns: LeafColumn[]): number {
-  return leafColumns.reduce((depth, leafColumn) => {
-    return Math.max(depth, leafColumn.ancestors.length + 1);
-  }, 1);
-}
-
-function getColumnPositions(
-  leafColumns: LeafColumn[],
-  columnDepth: number,
-): WeakMap<LeafColumn | ColumnDefWithDefaults, Position> {
-  const wm = new WeakMap();
-  let columnIndex = 1;
-  let pinnedIndex = 1;
-  let pinned: 'start' | 'end' | undefined;
-  for (let def of leafColumns) {
-    if (columnIndex > 1 && pinned !== def.pinned) {
-      pinnedIndex = 1;
-    }
-
-    for (let i = 0; i < def.ancestors.length; i++) {
-      const ancestor = def.ancestors[i];
-      const lineage = def.ancestors.slice(0, i);
-      const meta = wm.get(ancestor);
-      if (!meta) {
-        wm.set(ancestor, {
-          ancestors: lineage,
-          columnIndex,
-          columnIndexEnd: columnIndex + (ancestor.subcolumns?.length ?? 0),
-          field: ancestor.field,
-          depth: i + 1,
-          level: i,
-          pinnedIndex,
-          pinnedIndexEnd: pinnedIndex + (ancestor.subcolumns?.length ?? 0),
-          subcolumnIndex:
-            lineage
-              .at(-1)
-              ?.subcolumns?.findIndex((d) => d.field === ancestor.field) ?? 0,
-        });
-      }
-    }
-
-    wm.set(def, {
-      ancestors: def.ancestors,
-      columnIndex,
-      columnIndexEnd: columnIndex,
-      depth: columnDepth,
-      field: def.field,
-      level: def.ancestors.length,
-      pinnedIndex,
-      pinnedIndexEnd: pinnedIndex + 1,
-      subcolumnIndex:
-        def.ancestors
-          .at(-1)
-          ?.subcolumns?.findIndex((d) => d.field === def.field) ?? 0,
-    });
-
-    pinned = def.pinned;
-    pinnedIndex++;
-    columnIndex++;
-  }
-  return wm;
-}
-
-function getFlattendColumns(leafColumns: LeafColumn[]) {
+function getFlattenedColumns(leafColumns: LeafColumn[]) {
   const columnsSeen = {};
   const flattenedColumns = [];
   for (let leafColumn of leafColumns) {
