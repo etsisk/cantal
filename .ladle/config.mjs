@@ -10,6 +10,7 @@ export default {
     'grid--column-resizing',
     'grid--grouped-columns',
     'grid--pinned-columns',
+    'grid--cell-focus',
   ],
 };
 

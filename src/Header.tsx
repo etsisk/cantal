@@ -47,7 +47,9 @@ export function Header({
   const unpinnedLeafColumns = leafColumns.filter(
     (def) => def.pinned !== "start" && def.pinned !== "end",
   );
-  const pinnedEndLeafColumns = leafColumns.filter((def) => def.pinned === "end");
+  const pinnedEndLeafColumns = leafColumns.filter(
+    (def) => def.pinned === "end",
+  );
 
   function handleColumnResize(
     columnDef: LeafColumn | ColumnDefWithDefaults,
@@ -97,7 +99,8 @@ export function Header({
       if (def.field === existingLeafColumn.field) {
         colDefs.push(newDef);
       } else if (
-        isLeafColumn(existingLeafColumn) && existingLeafColumn.ancestors
+        isLeafColumn(existingLeafColumn) &&
+        existingLeafColumn.ancestors
           .map((ancestor: ColumnDefWithDefaults) => ancestor.field)
           .includes(def.field)
       ) {
@@ -116,7 +119,9 @@ export function Header({
     return colDefs;
   }
 
-  function getColumnDefWithDefaults(def: LeafColumn | ColumnDefWithDefaults): ColumnDefWithDefaults {
+  function getColumnDefWithDefaults(
+    def: LeafColumn | ColumnDefWithDefaults,
+  ): ColumnDefWithDefaults {
     if (isLeafColumn(def)) {
       const { ancestors, ...columnDefWithDefaults } = def;
       return columnDefWithDefaults;
@@ -124,8 +129,10 @@ export function Header({
     return def;
   }
 
-  function isLeafColumn(def: LeafColumn | ColumnDefWithDefaults): def is LeafColumn {
-    return Object.hasOwn(def, 'ancestors');
+  function isLeafColumn(
+    def: LeafColumn | ColumnDefWithDefaults,
+  ): def is LeafColumn {
+    return Object.hasOwn(def, "ancestors");
   }
 
   const viewportStyles = {
@@ -147,7 +154,7 @@ export function Header({
   };
 
   // TODO: Update naming Left => Start, Right => End
-  const pinnedLeftStyles = {
+  const pinnedStartStyles = {
     ...pinnedStyles,
     gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
   };
@@ -161,7 +168,7 @@ export function Header({
     gridTemplateColumns: "subgrid",
   };
 
-  const pinnedRightStyles = {
+  const pinnedEndStyles = {
     ...pinnedStyles,
     gridColumn: `${leafColumns.length - pinnedEndLeafColumns.length + 1} / ${
       leafColumns.length + 1
@@ -172,14 +179,16 @@ export function Header({
     <div className="cantal-header-viewport" ref={ref} style={viewportStyles}>
       <div className="cantal-header-canvas" style={canvasStyles}>
         <div className="cantal-header" style={{ display: "grid", ...styles }}>
-          {pinnedStartLeafColumns.length > 0 || pinnedEndLeafColumns.length > 0 ? (
+          {pinnedStartLeafColumns.length > 0 ||
+          pinnedEndLeafColumns.length > 0 ? (
             <>
               {pinnedStartLeafColumns.length > 0 && (
                 <div
-                  className="cantal-header-pinned-left"
-                  style={pinnedLeftStyles}
+                  className="cantal-header-pinned-start"
+                  style={pinnedStartStyles}
                 >
-                  {getFlattenedColumns(pinnedStartLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(pinnedStartLeafColumns).map(
+                    (def: LeafColumn | ColumnDefWithDefaults) => (
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -191,12 +200,14 @@ export function Header({
                         position={positions.get(def)}
                         sorts={sorts}
                       />
+                    ),
                   )}
                 </div>
               )}
               {unpinnedLeafColumns.length > 0 && (
                 <div className="cantal-header-unpinned" style={unpinnedStyles}>
-                  {getFlattenedColumns(unpinnedLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(unpinnedLeafColumns).map(
+                    (def: LeafColumn | ColumnDefWithDefaults) => (
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -208,15 +219,17 @@ export function Header({
                         position={positions.get(def)}
                         sorts={sorts}
                       />
+                    ),
                   )}
                 </div>
               )}
               {pinnedEndLeafColumns.length > 0 && (
                 <div
-                  className="mestia-header-pinned-right"
-                  style={pinnedRightStyles}
+                  className="cantal-header-pinned-end"
+                  style={pinnedEndStyles}
                 >
-                  {getFlattenedColumns(pinnedEndLeafColumns).map((def: LeafColumn | ColumnDefWithDefaults) =>
+                  {getFlattenedColumns(pinnedEndLeafColumns).map(
+                    (def: LeafColumn | ColumnDefWithDefaults) => (
                       <HeaderCell
                         columnDef={def}
                         filterer={def.filterer}
@@ -228,27 +241,26 @@ export function Header({
                         position={positions.get(def)}
                         sorts={sorts}
                       />
+                    ),
                   )}
                 </div>
               )}
             </>
           ) : (
             <>
-              {leafColumns.map((def: LeafColumn) =>
-                [...def.ancestors.concat(def)].map((def: LeafColumn) => (
-                  <HeaderCell
-                    columnDef={def}
-                    filterer={def.filterer}
-                    filters={filters}
-                    handleFilter={handleFilter}
-                    handleResize={handleColumnResize}
-                    handleSort={handleSort}
-                    key={def.field}
-                    position={positions.get(def)}
-                    sorts={sorts}
-                  />
-                )),
-              )}
+              {getFlattenedColumns(leafColumns).map((def: LeafColumn) => (
+                <HeaderCell
+                  columnDef={def}
+                  filterer={def.filterer}
+                  filters={filters}
+                  handleFilter={handleFilter}
+                  handleResize={handleColumnResize}
+                  handleSort={handleSort}
+                  key={def.field}
+                  position={positions.get(def)}
+                  sorts={sorts}
+                />
+              ))}
             </>
           )}
         </div>

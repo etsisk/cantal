@@ -1,4 +1,4 @@
-import { type FC, type PointerEvent,  useRef, useState } from "react";
+import { type FC, type PointerEvent, useRef, useState } from "react";
 import { type ColumnDefWithDefaults } from "./Grid";
 import type { Position } from "./Header";
 import { Resizer } from "./Resizer";

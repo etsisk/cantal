@@ -1,19 +1,33 @@
 import {
   type CSSProperties,
   type FC,
+  type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
   type SyntheticEvent,
+  useCallback,
   useRef,
+  useState,
 } from "react";
 import { Body, type Cell } from "./Body";
 import { Header } from "./Header";
 import { Filter } from "./Filter";
 import type { SortState } from "./Sorter";
 
+type RefCallback<T> = (instance: T | null) => void;
+
 export interface ColumnDef {
-  ariaCellLabel?: string;
+  ariaCellLabel?:
+    | string
+    | ((props: {
+        columnIndex: number;
+        data: { [key: string]: unknown };
+        def: ColumnDef;
+        rowIndex: number;
+        value: unknown;
+      }) => string);
   ariaHeaderCellLabel?:
     | string
     | ((props: { def: ColumnDefWithDefaults; position: Position }) => string);
@@ -27,17 +41,34 @@ export interface ColumnDef {
   sortStates?: SortState[];
   subcolumns?: ColumnDef[];
   title?: string;
+  valueRenderer?: (args: {
+    columnDef: ColumnDefWithDefaults;
+    data: { [key: string]: unknown };
+    value: unknown;
+  }) => ReactNode;
   width?: string | number;
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
-  // TODO: Expand ariaLabel types to include functions
-  ariaCellLabel: string;
+  ariaCellLabel:
+    | string
+    | ((props: {
+        columnIndex: number;
+        data: { [key: string]: unknown };
+        def: ColumnDef;
+        rowIndex: number;
+        value: unknown;
+      }) => string);
   ariaHeaderCellLabel: string;
   filterer: FC;
   minWidth: number;
   sortStates: SortState[];
   subcolumns: ColumnDefWithDefaults[];
+  valueRenderer: (args: {
+    columnDef: ColumnDefWithDefaults;
+    data: { [key: string]: unknown };
+    value: unknown;
+  }) => ReactNode;
   width: number;
 }
 
@@ -59,21 +90,44 @@ export interface Position {
   subcolumnIndex: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface DataRow {
   [key: string]: unknown;
 }
 
+export interface HandleKeyDownArgs {
+  e: KeyboardEvent<HTMLDivElement>;
+  cell: Cell;
+  columnDef: ColumnDefWithDefaults;
+  defaultHandler: () => void;
+}
+
+export interface HandlePointerDownArgs {
+  e: PointerEvent<HTMLDivElement>;
+  cell: Cell;
+  point: Point;
+  columnDef: ColumnDefWithDefaults;
+  defaultHandler: () => void;
+}
+
 interface GridProps {
   body?: (
-    leafColumns: ColumnDefWithDefaults[],
+    leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     focusedCell: Cell | null,
     styles: CSSProperties,
     handleFocusedCellChange: (
       focusedCell: Cell,
       e: SyntheticEvent<Element, Event>,
+      point?: Point,
     ) => void,
-    containerRef: RefObject<HTMLDivElement | null>,
+    handleKeyDown: (args: HandleKeyDownArgs) => void,
+    handlePointerDown: (args: HandlePointerDownArgs) => void,
+    height: number,
     headerViewportRef: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
   ) => ReactNode;
@@ -84,10 +138,13 @@ interface GridProps {
   focusedCell?: { columnIndex: number; rowIndex: number } | null;
   gap?: number | { columnGap: number; rowGap: number };
   handleFocusedCellChange?: (
-    focusedCell?: Cell,
-    event?: SyntheticEvent,
+    focusedCell: Cell,
+    event: SyntheticEvent,
+    point?: Point,
   ) => void;
   handleFilter?: (field: string, value: string) => void;
+  handleKeyDown?: (args: HandleKeyDownArgs) => void;
+  handlePointerDown?: (args: HandlePointerDownArgs) => void;
   handleResize?: (
     field: string,
     value: number,
@@ -116,17 +173,21 @@ export function Grid({
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     focusedCell: Cell | null,
     styles: CSSProperties,
-    handleFocusedCellChange = noop,
-    containerRef: RefObject<HTMLDivElement | null>,
+    handleFocusedCellChange,
+    handleKeyDown,
+    handlePointerDown,
+    height: number,
     headerViewportRef: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
   ) => (
     <Body
       canvasWidth={canvasWidth}
-      containerRef={containerRef}
+      containerHeight={height}
       data={data}
       focusedCell={focusedCell}
       handleFocusedCellChange={handleFocusedCellChange}
+      handleKeyDown={handleKeyDown}
+      handlePointerDown={handlePointerDown}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
       positions={positions}
@@ -141,6 +202,8 @@ export function Grid({
   gap = { columnGap: 1, rowGap: 1 },
   handleFocusedCellChange = noop,
   handleFilter = noop,
+  handleKeyDown = invokeDefaultHanlder,
+  handlePointerDown = invokeDefaultHanlder,
   handleResize = noop,
   handleSort = noop,
   header = (
@@ -169,6 +232,15 @@ export function Grid({
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerViewportRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>(0);
+  const sizeRef = useCallback((node: HTMLElement) => {
+    if (node !== null) {
+      const resizeObserver = new ResizeObserver((entries) => {
+        setHeight(entries[0].contentRect.height);
+      });
+      resizeObserver.observe(node);
+    }
+  }, []);
   const { columnGap, rowGap } =
     typeof gap === "number" ? { columnGap: gap, rowGap: gap } : gap;
   const colDefs = applyColumnDefDefaults(columnDefs, columnDefDefaults);
@@ -194,7 +266,11 @@ export function Grid({
   };
 
   return (
-    <div className="cantal" ref={containerRef} style={styles?.container}>
+    <div
+      className="cantal"
+      ref={mergeRefs(containerRef, sizeRef)}
+      style={styles?.container}
+    >
       {header(
         colDefs,
         orderedLeafColumns,
@@ -209,7 +285,9 @@ export function Grid({
         focusedCell,
         computedStyles,
         handleFocusedCellChange,
-        containerRef,
+        handleKeyDown,
+        handlePointerDown,
+        height,
         headerViewportRef,
         canvasWidth,
       )}
@@ -224,19 +302,29 @@ const DEFAULT_COLUMN_WIDTH = 100;
 const columnDefDefaults = {
   ariaCellLabel: ({
     def,
-    position,
+    columnIndex,
+    data,
+    rowIndex,
+    value,
   }: {
     def: ColumnDefWithDefaults;
-    position: Position;
+    columnIndex: number;
+    data: { [key: string]: unknown };
+    rowIndex: number;
+    value: unknown;
   }): string =>
-    `Column ${position.columnIndex + 1}${
+    `Column ${columnIndex + 1}${
       ["start", "end"].includes(def.pinned) ? ", pinned" : ""
     }${def.title ? `, ${def.title}` : ""}`,
   // TODO: Add 'pinned' to header aria label
-  ariaHeaderCellLabel: ({ position }: { position: Position }) =>
-    `Column ${position.columnIndex}${
-      position.ancestors.length ? ", " : ""
-    }${position.ancestors
+  ariaHeaderCellLabel: ({
+    def,
+    position,
+  }: {
+    def: ColumnDefWithDefaults | LeafColumn;
+    position: Position;
+  }) =>
+    `Column ${position.columnIndex}, ${position.ancestors
       .map((ancestor) => ancestor.title)
       .filter((title) => {
         if (typeof title === "string") {
@@ -244,6 +332,7 @@ const columnDefDefaults = {
         }
         return false;
       })
+      .concat([def.title])
       .join(" ")}`,
   filterer: Filter,
   minWidth: MIN_COLUMN_WIDTH,
@@ -253,6 +342,11 @@ const columnDefDefaults = {
     { label: "descending", symbol: "↓", iterable: true },
   ],
   subcolumns: [],
+  valueRenderer: (args: {
+    columnDef: ColumnDefWithDefaults;
+    data: { [key: string]: unknown };
+    value: unknown;
+  }) => args.value,
   width: DEFAULT_COLUMN_WIDTH,
 };
 
@@ -328,14 +422,14 @@ function pinColumns(columnDefs: LeafColumn[]): LeafColumn[] {
     a.pinned === b.pinned
       ? 0
       : a.pinned === "start"
-      ? -1
-      : a.pinned === "end"
-      ? 1
-      : !["start", "end"].includes(a.pinned) && b.pinned === "start"
-      ? 1
-      : !["start", "end"].includes(a.pinned) && b.pinned === "end"
-      ? -1
-      : 0,
+        ? -1
+        : a.pinned === "end"
+          ? 1
+          : !["start", "end"].includes(a.pinned) && b.pinned === "start"
+            ? 1
+            : !["start", "end"].includes(a.pinned) && b.pinned === "end"
+              ? -1
+              : 0,
   );
 }
 
@@ -426,11 +520,11 @@ export function getGridCanvasWidth(
   return endBoundary ? `${endBoundary}px` : "auto";
 }
 
-function getColumnEndBoundary(
+export function getColumnEndBoundary(
   colIdx: number,
   leafColumns: ColumnDefWithDefaults[],
   columnGap: number,
-) {
+): number | null {
   const startBoundary = getColumnStartBoundary(
     colIdx + 1,
     leafColumns,
@@ -450,7 +544,7 @@ export function getColumnStartBoundary(
   colIdx: number,
   leafColumns: ColumnDefWithDefaults[],
   columnGap: number,
-) {
+): number | null {
   const totalColumnWidths = leafColumns
     ?.slice(0, colIdx)
     .map((col: ColumnDefWithDefaults) =>
@@ -471,3 +565,18 @@ export function getColumnStartBoundary(
 
 function validateProps(props) {}
 function noop() {}
+function invokeDefaultHanlder({ defaultHandler }) {
+  return defaultHandler();
+}
+
+function mergeRefs<T>(...refs: (Ref<T> | undefined)[]): RefCallback<T> {
+  return (instance: T | null) => {
+    refs.forEach((ref) => {
+      if (typeof ref === "function") {
+        ref(instance);
+      } else if (ref != null) {
+        (ref as RefObject<T | null>).current = instance;
+      }
+    });
+  };
+}

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ColumnDefWithDefaults, LeafColumn, Position } from "./Grid";
 
 interface CellProps {
+  ariaLabel: string;
   children: ReactNode;
   columnDef: ColumnDefWithDefaults | LeafColumn;
   columnIndex: number;
@@ -11,6 +12,7 @@ interface CellProps {
 }
 
 export function Cell({
+  ariaLabel,
   children,
   columnDef,
   columnIndex,
@@ -20,11 +22,7 @@ export function Cell({
 }: CellProps) {
   return (
     <div
-      aria-label={
-        typeof columnDef.ariaCellLabel === "function"
-          ? columnDef.ariaCellLabel({ def: columnDef, position })
-          : columnDef.ariaCellLabel
-      }
+      aria-label={ariaLabel}
       className={`cantal-cell-base${isFocused ? " cantal-cell-focused" : ""}${
         columnDef.pinned ? ` cantal-cell-pinned-${columnDef.pinned}` : ""
       }`}

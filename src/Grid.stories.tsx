@@ -1,13 +1,21 @@
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, PointerEvent, useRef, useState } from "react";
 import {
   type ColumnDef,
   type ColumnDefWithDefaults,
   type DataRow,
   getLeafColumns,
   Grid,
+  type Point,
 } from "./Grid";
+import type { Cell } from "./Body";
 import type { FilterProps } from "./Filter";
 import { colDefs, data, groupedColumnDefs } from "./stories";
+
+export default {
+  meta: {
+    hotkeys: false,
+  },
+};
 
 export function Simple() {
   const defs = colDefs
@@ -290,8 +298,8 @@ export function PinnedColumns() {
             ) ?? [],
         }
       : Object.keys(pinned).includes(gc.field)
-      ? { ...gc, pinned: pinned[gc.field] }
-      : gc,
+        ? { ...gc, pinned: pinned[gc.field] }
+        : gc,
   );
 
   return (
@@ -360,12 +368,6 @@ export function PinnedColumns() {
           Unpin
         </button>
       </form>
-      <h3>TODO</h3>
-      <ul>
-        <li>Move WeakMap calculations to Grid component, pass down to Header, Body</li>
-        <li>Ensure grid-row, grid-column values are properly set (when pinning occurs)</li>
-        <li>Apply pinned columns to body component</li>
-      </ul>
       <br />
       <Grid
         columnDefs={defs}
@@ -373,5 +375,26 @@ export function PinnedColumns() {
         styles={{ container: { height: 500, width: 1100 } }}
       />
     </div>
+  );
+}
+
+export function CellFocus() {
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  return (
+    <Grid
+      columnDefs={colDefs}
+      data={data}
+      focusedCell={focusedCell}
+      handleFocusedCellChange={(
+        cell: Cell,
+        e: PointerEvent<HTMLDivElement>,
+        point: Point,
+      ) => {
+        if (cell) {
+          setFocusedCell(cell);
+        }
+      }}
+      styles={{ container: { height: 400, width: "800px" } }}
+    />
   );
 }
