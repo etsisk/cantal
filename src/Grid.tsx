@@ -160,6 +160,7 @@ interface GridProps {
     canvasWidth: string,
   ) => ReactNode;
   id?: string;
+  rowHeight?: number;
   selectedRanges?: Range[];
   styles?: {
     container: CSSProperties;
@@ -176,6 +177,7 @@ export function Grid({
   ) => (
     <Body
       canvasWidth={canvasWidth}
+      columnGap={typeof gap === "number" ? gap : gap.columnGap}
       containerHeight={height}
       data={data}
       focusedCell={focusedCell}
@@ -186,6 +188,8 @@ export function Grid({
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
       positions={positions}
+      rowGap={typeof gap === "number" ? gap : gap.rowGap}
+      rowHeight={rowHeight}
       selectedRanges={selectedRanges}
       styles={styles}
     />
@@ -194,7 +198,7 @@ export function Grid({
   columnSorts = {},
   data,
   filters = {},
-  focusedCell = null,
+  focusedCell,
   gap = { columnGap: 1, rowGap: 1 },
   handleFocusedCellChange = noop,
   handleFilter = noop,
@@ -225,6 +229,7 @@ export function Grid({
       styles={styles}
     />
   ),
+  rowHeight,
   selectedRanges = [],
   styles,
 }: GridProps) {

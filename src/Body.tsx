@@ -31,9 +31,10 @@ type Direction = "left" | "right" | "up" | "down";
 
 interface BodyProps {
   canvasWidth: string;
+  columnGap: number;
   containerHeight: number;
   data: any[];
-  focusedCell: Cell | null;
+  focusedCell?: Cell | null;
   handleFocusedCellChange: (
     focusCell: Cell,
     e: SyntheticEvent,
@@ -49,15 +50,18 @@ interface BodyProps {
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
+  rowGap: number;
+  rowHeight?: number;
   selectedRanges: Range[];
   styles: CSSProperties;
 }
 
 export function Body({
   canvasWidth,
+  columnGap,
   containerHeight,
   data,
-  focusedCell,
+  focusedCell = null,
   handleFocusedCellChange,
   handleKeyDown,
   handlePointerDown,
@@ -65,12 +69,14 @@ export function Body({
   headerViewportRef,
   leafColumns,
   positions,
+  rowGap,
+  rowHeight = 27,
   selectedRanges,
   styles,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  // QUESTION: Should this be defined here or on Grid.tsx?
+  // QUESTION: Should `focusedCellRef` be defined here or on Grid.tsx?
   const focusedCellRef = useRef<HTMLDivElement>(null);
   const [startDragCell, setStartDragCell] = useState<Cell | undefined>(
     undefined,
@@ -102,24 +108,21 @@ export function Body({
     if (columnDef === undefined || columnDef.pinned !== undefined) {
       return;
     }
-    // TODO: Softcode rowHeight
-    const rowHeight = 27;
     const viewportRect = getViewportBoundingBox(
       viewportRef.current,
       leafColumns,
+      columnGap,
     );
     // TODO: Account for non-pixel based widths (e.g. '1fr')
     const cellInlineStart = leafColumns.reduce((offset, def, i) => {
       if (i < focusedCell.columnIndex) {
-        // TODO: Avoid hardcoding `rowGap`
-        return offset + def.width + 1;
+        return offset + def.width + rowGap;
       }
       return offset;
     }, 0);
     const cellInlineEnd = cellInlineStart + columnDef.width;
     const cellBlockStart =
-      // TODO: Avoid hardcoding `rowGap`
-      rowHeight * focusedCell.rowIndex + focusedCell.rowIndex * 1;
+      rowHeight * focusedCell.rowIndex + focusedCell.rowIndex * rowGap;
     const cellBlockEnd = cellBlockStart + rowHeight;
     // TODO: Consider extracting scroll logic into reusable function
     if (cellInlineStart < viewportRect.left) {
@@ -133,7 +136,7 @@ export function Body({
     } else if (cellBlockEnd > viewportRect.bottom) {
       viewportRef.current.scrollTop = cellBlockEnd - viewportRect.height;
     }
-  }, [focusedCell, leafColumns]);
+  }, [columnGap, focusedCell, leafColumns]);
 
   useEffect(() => {
     function pointerMove(e: PointerEvent<Element>) {
@@ -177,12 +180,11 @@ export function Body({
     };
   }, [selectedRanges, startDragCell]);
 
-  // TODO: Live somewhere else
-  // TODO: Pass `columnGap` as a prop from Grid.tsx
+  // TODO: `getViewportBoundingBox` should live somewhere else
   function getViewportBoundingBox(
     viewport: HTMLDivElement,
     leafColumns: LeafColumn[],
-    columnGap: number = 1,
+    columnGap: number,
   ) {
     const { offsetHeight, offsetWidth, scrollLeft, scrollTop } = viewport;
     const pinnedStartColumns = leafColumns.filter(
@@ -444,8 +446,7 @@ export function Body({
     ...styles,
     backgroundColor: "var(--background-color)",
     display: "grid",
-    // TODO: Avoid hard-coding rowHeight
-    gridAutoRows: 27,
+    gridAutoRows: rowHeight,
     gridTemplateColumns: "subgrid",
     insetInline: 0,
     position: "sticky",
@@ -459,6 +460,7 @@ export function Body({
   const unpinnedStyles = {
     ...styles,
     display: "grid",
+    gridAutoRows: rowHeight,
     gridColumn: `${pinnedStartLeafColumns.length + 1} / ${
       leafColumns.length - pinnedEndLeafColumns.length + 1
     }`,
@@ -551,6 +553,7 @@ export function Body({
           className="cantal-body"
           style={{
             display: "grid",
+            gridAutoRows: rowHeight,
             ...styles,
           }}
         >
