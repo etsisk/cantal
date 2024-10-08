@@ -398,3 +398,53 @@ export function CellFocus() {
     />
   );
 }
+
+export function CellSelection() {
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
+  const [startPoint, setStartPoint] = useState<Point | undefined>(undefined);
+  const [endPoint, setEndPoint] = useState<Point | undefined>(undefined);
+
+  return (
+    <>
+      <h3>TODO</h3>
+      <ul>
+        <li>Integrate the selection box as part of Cantal</li>
+      </ul>
+
+      <Grid
+        columnDefs={colDefs}
+        data={data}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(
+          cell: Cell,
+          e: PointerEvent<HTMLDivElement>,
+          point: Point,
+        ) => {
+          if (cell) {
+            setFocusedCell(cell);
+            setStartPoint(point);
+          }
+        }}
+        handleSelection={(selectedRanges: Range[], endPoint: Point) => {
+          setSelectedRanges(selectedRanges);
+          setEndPoint(endPoint);
+        }}
+        selectedRanges={selectedRanges}
+      />
+      {startPoint && endPoint && startPoint !== endPoint && (
+        <div
+          style={{
+            backgroundColor: "rgba(125, 200, 255, 0.18)",
+            border: "1px solid rgb(34, 119, 221)",
+            height: Math.abs(startPoint.y - endPoint.y),
+            width: Math.abs(startPoint.x - endPoint.x),
+            left: Math.min(startPoint.x, endPoint.x) + 45,
+            top: Math.min(startPoint.y, endPoint.y) + 75,
+            position: "absolute",
+          }}
+        />
+      )}
+    </>
+  );
+}

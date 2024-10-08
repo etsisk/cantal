@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import { Cell } from "./Cell";
 import {
@@ -40,9 +41,15 @@ interface BodyProps {
   ) => void;
   handleKeyDown: (args: HandleKeyDownArgs) => void;
   handlePointerDown: (args: HandlePointerDownArgs) => void;
+  handleSelection?: (
+    selectedRanges: Range[],
+    endPoint: Point,
+    e: PointerEvent<Element>,
+  ) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
+  selectedRanges: Range[];
   styles: CSSProperties;
 }
 
@@ -54,15 +61,23 @@ export function Body({
   handleFocusedCellChange,
   handleKeyDown,
   handlePointerDown,
+  handleSelection,
   headerViewportRef,
   leafColumns,
   positions,
+  selectedRanges,
   styles,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   // QUESTION: Should this be defined here or on Grid.tsx?
   const focusedCellRef = useRef<HTMLDivElement>(null);
+  const [startDragCell, setStartDragCell] = useState<Cell | undefined>(
+    undefined,
+  );
+  const [startDragPoint, setStartDragPoint] = useState<Point | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     if (viewportRef.current) {
@@ -82,11 +97,7 @@ export function Body({
     if (!focusedCell || !viewportRef.current) {
       return;
     }
-    // TODO: scroll cell into viewport
-    // 1. Get columnDef from focusedCell.columnIndex
-    // 2. Return early if columnDef is pinned
-    // 3. Use arithmetic to calculate offset (column widths, row height, viewport size)
-    // 4. Are there edge cases with virtualization
+    // TODO: Are there edge cases with virtualization
     const columnDef = leafColumns[focusedCell?.columnIndex];
     if (columnDef === undefined || columnDef.pinned !== undefined) {
       return;
@@ -123,6 +134,48 @@ export function Body({
       viewportRef.current.scrollTop = cellBlockEnd - viewportRect.height;
     }
   }, [focusedCell, leafColumns]);
+
+  useEffect(() => {
+    function pointerMove(e: PointerEvent<Element>) {
+      const cell = getCellFromEvent(e);
+      const point = {
+        x: e.clientX - canvasRef.current.getBoundingClientRect().left,
+        y: e.clientY - canvasRef.current.getBoundingClientRect().top,
+      };
+
+      if (!cell) {
+        return;
+      }
+
+      handleSelection(
+        [
+          range(
+            startDragCell.rowIndex,
+            startDragCell.columnIndex,
+            cell.rowIndex,
+            cell.columnIndex,
+          ),
+        ],
+        point,
+        e,
+      );
+    }
+
+    function pointerUp(e: PointerEvent<Element>) {
+      handleSelection(selectedRanges, null, e);
+      setStartDragCell(undefined);
+      setStartDragPoint(undefined);
+    }
+    if (startDragCell) {
+      window.addEventListener("pointermove", pointerMove);
+      window.addEventListener("pointerup", pointerUp);
+    }
+
+    return function cleanup() {
+      window.removeEventListener("pointermove", pointerMove);
+      window.removeEventListener("pointerup", pointerUp);
+    };
+  }, [selectedRanges, startDragCell]);
 
   // TODO: Live somewhere else
   // TODO: Pass `columnGap` as a prop from Grid.tsx
@@ -171,7 +224,7 @@ export function Body({
     (lc) => lc.pinned !== "start" && lc.pinned !== "end",
   );
 
-  function handleEvent(e: PointerEvent, eventLabel: string) {}
+  function handleEvent(e: PointerEvent<Element>, eventLabel: string) {}
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!focusedCell) {
@@ -320,6 +373,8 @@ export function Body({
     });
     // Allow DIV elements to take focus
     e.preventDefault();
+    // Persist event object across function calls
+    e.persist();
   }
 
   function defaultHandlePointerDown(
@@ -360,10 +415,11 @@ export function Body({
 
     // Only start cell drag for a left mouse button down
     if (e.button === 0 && !e.ctrlKey) {
-      // if (handleSelection) {
-      //   dispatch(startCellDrag(cell));
-      // }
-      //
+      if (handleSelection) {
+        setStartDragCell(cell);
+        setStartDragPoint(point);
+      }
+
       handleFocusedCellChange(cell, e, point);
       // setSelectionRangeToFocusedCell(cell, e);
     }
@@ -611,6 +667,10 @@ export function Body({
                       isFocused={isFocused}
                       position={positions.get(columnDef)}
                       rowIndex={rowIndex}
+                      selected={rangesContainCell(selectedRanges, {
+                        columnIndex,
+                        rowIndex,
+                      })}
                     >
                       {row[columnDef.field]}
                     </Cell>
@@ -640,5 +700,118 @@ function getCellFromEvent(event: SyntheticEvent) {
   return {
     columnIndex: +columnIndex,
     rowIndex: +rowIndex,
+  };
+}
+
+function rangesContainCell(ranges: Range[], cell: Cell): boolean {
+  if (!cell) {
+    return false;
+  }
+
+  for (let i in ranges) {
+    const range = ranges[i];
+
+    if (range.contains(cell.rowIndex, cell.columnIndex)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export interface Range {
+  contains: (row?: number, column?: number) => boolean;
+  containsMultipleCells: () => boolean;
+  equals: (other: Range) => boolean;
+  fromColumn: number;
+  fromRow: number;
+  merge: (other: Range) => Range;
+  shape: () => [number, number];
+  toColumn: number;
+  toRow: number;
+  toString: () => string;
+}
+
+function range(
+  startRow: number,
+  startColumn: number,
+  endRow?: number,
+  endColumn?: number,
+): Range {
+  const _endColumn = endColumn ?? startColumn;
+  const _endRow = endRow ?? startRow;
+  const fromColumn = startColumn
+    ? Math.max(0, Math.min(startColumn, _endColumn))
+    : undefined;
+  const fromRow = startRow
+    ? Math.max(0, Math.min(startRow, _endRow))
+    : undefined;
+  const toColumn = startColumn ? Math.max(startColumn, _endColumn) : undefined;
+  const toRow = startRow ? Math.max(startRow, _endRow) : undefined;
+
+  function contains(row?: number, column?: number): boolean {
+    if (fromRow && fromColumn) {
+      return (
+        row >= fromRow &&
+        row <= toRow &&
+        column >= fromColumn &&
+        column <= toColumn
+      );
+    }
+    if (fromRow) {
+      return row >= fromRow && row <= toRow;
+    }
+    if (fromColumn) {
+      return column >= fromColumn && column <= toColumn;
+    }
+    return false;
+  }
+
+  function containsMultipleCells(): boolean {
+    const s = shape();
+    return (
+      s[0] > 0 ||
+      s[1] > 0 ||
+      (fromColumn === undefined && toColumn === undefined)
+    );
+  }
+
+  function equals(other: Range): boolean {
+    return (
+      fromRow === other.fromRow &&
+      fromColumn === other.fromColumn &&
+      toRow === other.toRow &&
+      toColumn === other.toColumn
+    );
+  }
+
+  function merge(other: Range): Range {
+    return range(
+      Math.min(fromRow, other.fromRow),
+      Math.min(fromColumn, other.fromColumn),
+      Math.max(toRow, other.toRow),
+      Math.max(toColumn, other.toColumn),
+    );
+  }
+
+  function shape(): [number, number] {
+    return [toRow - fromRow, toColumn - fromColumn];
+  }
+
+  function toString(): string {
+    return `rows ${fromRow} to ${toRow}; columns ${fromColumn} to ${toColumn}`;
+  }
+
+  return {
+    contains,
+    containsMultipleCells,
+    equals,
+    fromColumn,
+    fromRow,
+    merge,
+    shape,
+    toColumn,
+    toRow,
+    toString,
   };
 }

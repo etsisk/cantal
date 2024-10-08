@@ -118,18 +118,10 @@ interface GridProps {
   body?: (
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
-    focusedCell: Cell | null,
     styles: CSSProperties,
-    handleFocusedCellChange: (
-      focusedCell: Cell,
-      e: SyntheticEvent<Element, Event>,
-      point?: Point,
-    ) => void,
-    handleKeyDown: (args: HandleKeyDownArgs) => void,
-    handlePointerDown: (args: HandlePointerDownArgs) => void,
     height: number,
-    headerViewportRef: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
+    headerViewportRef: RefObject<HTMLDivElement | null>,
   ) => ReactNode;
   columnDefs: ColumnDef[];
   columnSorts?: { [key: string]: string };
@@ -150,6 +142,11 @@ interface GridProps {
     value: number,
     columnDefs: ColumnDefWithDefaults[],
   ) => void;
+  handleSelection?: (
+    selectedRanges: Range[],
+    endPoint: Point,
+    e: PointerEvent<Window>,
+  ) => void;
   handleSort?: (
     nextSortMode: { [key: string]: string },
     e: PointerEvent<HTMLButtonElement>,
@@ -163,6 +160,7 @@ interface GridProps {
     canvasWidth: string,
   ) => ReactNode;
   id?: string;
+  selectedRanges?: Range[];
   styles?: {
     container: CSSProperties;
   };
@@ -171,14 +169,10 @@ export function Grid({
   body = (
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
-    focusedCell: Cell | null,
     styles: CSSProperties,
-    handleFocusedCellChange,
-    handleKeyDown,
-    handlePointerDown,
     height: number,
-    headerViewportRef: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
+    headerViewportRef: RefObject<HTMLDivElement | null>,
   ) => (
     <Body
       canvasWidth={canvasWidth}
@@ -188,9 +182,11 @@ export function Grid({
       handleFocusedCellChange={handleFocusedCellChange}
       handleKeyDown={handleKeyDown}
       handlePointerDown={handlePointerDown}
+      handleSelection={handleSelection}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
       positions={positions}
+      selectedRanges={selectedRanges}
       styles={styles}
     />
   ),
@@ -205,6 +201,7 @@ export function Grid({
   handleKeyDown = invokeDefaultHanlder,
   handlePointerDown = invokeDefaultHanlder,
   handleResize = noop,
+  handleSelection,
   handleSort = noop,
   header = (
     colDefs: ColumnDefWithDefaults[],
@@ -228,6 +225,7 @@ export function Grid({
       styles={styles}
     />
   ),
+  selectedRanges = [],
   styles,
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -265,11 +263,18 @@ export function Grid({
     rowGap,
   };
 
+  const containerStyles = {
+    ...(selectedRanges.length > 0
+      ? { WebkitUserSelect: "none", userSelect: "none" }
+      : {}),
+    ...styles?.container,
+  };
+
   return (
     <div
       className="cantal"
       ref={mergeRefs(containerRef, sizeRef)}
-      style={styles?.container}
+      style={containerStyles}
     >
       {header(
         colDefs,
@@ -282,14 +287,10 @@ export function Grid({
       {body(
         orderedLeafColumns,
         positions,
-        focusedCell,
         computedStyles,
-        handleFocusedCellChange,
-        handleKeyDown,
-        handlePointerDown,
         height,
-        headerViewportRef,
         canvasWidth,
+        headerViewportRef,
       )}
     </div>
   );

@@ -9,6 +9,7 @@ interface CellProps {
   isFocused: boolean;
   position: Position;
   rowIndex: number;
+  selected: boolean;
 }
 
 export function Cell({
@@ -19,12 +20,17 @@ export function Cell({
   isFocused,
   position,
   rowIndex,
+  selected = false,
 }: CellProps) {
   return (
     <div
       aria-label={ariaLabel}
       className={`cantal-cell-base${isFocused ? " cantal-cell-focused" : ""}${
-        columnDef.pinned ? ` cantal-cell-pinned-${columnDef.pinned}` : ""
+        columnDef.pinned
+          ? ` cantal-cell-pinned-${columnDef.pinned}`
+          : selected
+            ? " cantal-cell-selected"
+            : ""
       }`}
       data-col-idx={columnIndex}
       data-field={columnDef.field}

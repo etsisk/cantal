@@ -153,7 +153,6 @@ export function Header({
     position: "sticky",
   };
 
-  // TODO: Update naming Left => Start, Right => End
   const pinnedStartStyles = {
     ...pinnedStyles,
     gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
