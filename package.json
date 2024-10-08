@@ -12,15 +12,15 @@
   "dependencies": {
     "@types/react": "npm:types-react@rc",
     "@types/react-dom": "npm:types-react-dom@rc",
-    "react": "19.0.0-rc-4c58fce7-20240904",
-    "react-dom": "19.0.0-rc-4c58fce7-20240904"
+    "react": "19.0.0-rc-ed966dac-20241007",
+    "react-dom": "19.0.0-rc-ed966dac-20241007"
   },
   "overrides": {
     "@types/react": "npm:types-react@rc",
     "@types/react-dom": "npm:types-react-dom@rc"
   },
   "devDependencies": {
-    "@ladle/react": "^4.1.1",
-    "typescript": "^5.5.4"
+    "@ladle/react": "^4.1.2",
+    "typescript": "^5.6.2"
   }
 }
