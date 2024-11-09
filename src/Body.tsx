@@ -53,6 +53,7 @@ interface BodyProps {
   rowGap: number;
   rowHeight?: number;
   selectedRanges: Range[];
+  selectionFollowsFocus?: boolean;
   styles: CSSProperties;
 }
 
@@ -72,6 +73,7 @@ export function Body({
   rowGap,
   rowHeight = 27,
   selectedRanges,
+  selectionFollowsFocus = false,
   styles,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -141,10 +143,7 @@ export function Body({
   useEffect(() => {
     function pointerMove(e: PointerEvent<Element>) {
       const cell = getCellFromEvent(e);
-      const point = {
-        x: e.clientX - canvasRef.current.getBoundingClientRect().left,
-        y: e.clientY - canvasRef.current.getBoundingClientRect().top,
-      };
+      const point = getPointFromEvent(e, canvasRef.current);
 
       if (!cell) {
         return;
@@ -248,12 +247,26 @@ export function Body({
       const dir = e.key.replace("Arrow", "").toLowerCase() as Direction;
       if (
         e.shiftKey &&
-        focusedCell //&&
-        // selectedRanges &&
-        // selectedRanges.length > 0 &&
-        // handleSelection
+        focusedCell &&
+        selectedRanges &&
+        selectedRanges.length > 0 &&
+        handleSelection
       ) {
-        // TODO: range rangeSelection
+        // TODO: make `point` optional?
+        const point = getPointFromEvent(e, canvasRef.current);
+        handleSelection(
+          [
+            getExpandedSelectionRangeOnKey(
+              e.key,
+              focusedCell,
+              selectedRanges[0],
+              data,
+              leafColumns,
+            ),
+          ],
+          point,
+          e,
+        );
       } else {
         navigateCell(e, dir);
       }
@@ -356,12 +369,29 @@ export function Body({
     return true;
   }
 
+  function setSelectionRangeToFocusedCell(focusedCell: Cell, e) {
+    if (selectionFollowsFocus && handleSelection) {
+      const point = getPointFromEvent(e, canvasRef.current);
+
+      handleSelection(
+        [range(focusedCell.rowIndex, focusedCell.columnIndex)],
+        point,
+        // getSelectionRangeWithMergedCells(
+        //   new Range(focusedCell.rowIdx, focusedCell.colIdx),
+        //   rangeSelectionBehavior,
+        //   leafColumns,
+        //   data,
+        //   hasGridBodyAreas,
+        //   columnSpansByRow
+        // ),
+        e,
+      );
+    }
+  }
+
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     const cell = getCellFromEvent(e);
-    const point = {
-      x: e.clientX - canvasRef.current.getBoundingClientRect().left,
-      y: e.clientY - canvasRef.current.getBoundingClientRect().top,
-    };
+    const point = getPointFromEvent(e, canvasRef.current);
     if (!cell) {
       return;
     }
@@ -394,36 +424,39 @@ export function Body({
 
     if (
       e.shiftKey &&
-      focusedCell //&&
-      // selectedRanges &&
-      // selectedRanges.length > 0 &&
-      // handleSelection
+      focusedCell &&
+      selectedRanges &&
+      selectedRanges.length > 0 &&
+      handleSelection
     ) {
-      // handleSelection(
-      //   getSelectionRangeWithMergedCells(
-      //     new Range(focusedCell.rowIdx, focusedCell.colIdx).merge(
-      //       new Range(cell.rowIdx, cell.colIdx)
-      //     ),
-      //     rangeSelectionBehavior,
-      //     leafColumns,
-      //     data,
-      //     hasGridBodyAreas,
-      //     columnSpansByRow
-      //   ),
-      //   e
-      // );
+      handleSelection(
+        //   getSelectionRangeWithMergedCells(
+        [
+          range(focusedCell.rowIndex, focusedCell.columnIndex).merge(
+            range(cell.rowIndex, cell.columnIndex),
+          ),
+        ],
+        //     rangeSelectionBehavior,
+        //     leafColumns,
+        //     data,
+        //     hasGridBodyAreas,
+        //     columnSpansByRow
+        //   ),
+        point,
+        e,
+      );
       return;
     }
 
     // Only start cell drag for a left mouse button down
     if (e.button === 0 && !e.ctrlKey) {
+      handleFocusedCellChange(cell, e, point);
+
       if (handleSelection) {
         setStartDragCell(cell);
         setStartDragPoint(point);
+        setSelectionRangeToFocusedCell(cell, e);
       }
-
-      handleFocusedCellChange(cell, e, point);
-      // setSelectionRangeToFocusedCell(cell, e);
     }
   }
 
@@ -706,11 +739,20 @@ function getCellFromEvent(event: SyntheticEvent) {
   };
 }
 
+function getPointFromEvent(
+  event: PointerEvent<Element>,
+  element: HTMLDivElement,
+): Point {
+  return {
+    x: event.clientX - element.getBoundingClientRect().left,
+    y: event.clientY - element.getBoundingClientRect().top,
+  };
+}
+
 function rangesContainCell(ranges: Range[], cell: Cell): boolean {
   if (!cell) {
     return false;
   }
-
   for (let i in ranges) {
     const range = ranges[i];
 
@@ -723,7 +765,7 @@ function rangesContainCell(ranges: Range[], cell: Cell): boolean {
 }
 
 export interface Range {
-  contains: (row?: number, column?: number) => boolean;
+  contains: (row: number, column: number) => boolean;
   containsMultipleCells: () => boolean;
   equals: (other: Range) => boolean;
   fromColumn: number;
@@ -735,7 +777,7 @@ export interface Range {
   toString: () => string;
 }
 
-function range(
+export function range(
   startRow: number,
   startColumn: number,
   endRow?: number,
@@ -743,31 +785,18 @@ function range(
 ): Range {
   const _endColumn = endColumn ?? startColumn;
   const _endRow = endRow ?? startRow;
-  const fromColumn = startColumn
-    ? Math.max(0, Math.min(startColumn, _endColumn))
-    : undefined;
-  const fromRow = startRow
-    ? Math.max(0, Math.min(startRow, _endRow))
-    : undefined;
-  const toColumn = startColumn ? Math.max(startColumn, _endColumn) : undefined;
-  const toRow = startRow ? Math.max(startRow, _endRow) : undefined;
+  const fromColumn = Math.max(0, Math.min(startColumn, _endColumn));
+  const fromRow = Math.max(0, Math.min(startRow, _endRow));
+  const toColumn = Math.max(startColumn, _endColumn);
+  const toRow = Math.max(startRow, _endRow);
 
-  function contains(row?: number, column?: number): boolean {
-    if (fromRow && fromColumn) {
-      return (
-        row >= fromRow &&
-        row <= toRow &&
-        column >= fromColumn &&
-        column <= toColumn
-      );
-    }
-    if (fromRow) {
-      return row >= fromRow && row <= toRow;
-    }
-    if (fromColumn) {
-      return column >= fromColumn && column <= toColumn;
-    }
-    return false;
+  function contains(row: number, column: number): boolean {
+    return (
+      row >= fromRow &&
+      row <= toRow &&
+      column >= fromColumn &&
+      column <= toColumn
+    );
   }
 
   function containsMultipleCells(): boolean {
@@ -817,4 +846,63 @@ function range(
     toRow,
     toString,
   };
+}
+
+function getExpandedSelectionRangeOnKey(
+  key: string,
+  focusedCell: Cell | null,
+  selectedRange: Range,
+  data: Record<string, unknown>[],
+  leafColumns: LeafColumn[],
+): Range {
+  const r = range(
+    Math.min(
+      data.length - 1,
+      selectedRange.fromRow +
+        (selectedRange.fromRow > focusedCell.rowIndex
+          ? 0
+          : key === "ArrowUp" && selectedRange.toRow === focusedCell.rowIndex
+            ? -1
+            : key === "ArrowDown" &&
+                selectedRange.toRow === focusedCell.rowIndex
+              ? 1
+              : 0),
+    ),
+    Math.min(
+      leafColumns.length - 1,
+      selectedRange.fromColumn +
+        (selectedRange.fromColumn > focusedCell.columnIndex
+          ? 0
+          : key === "ArrowLeft" &&
+              selectedRange.toColumn === focusedCell.columnIndex
+            ? -1
+            : key === "ArrowRight" &&
+                selectedRange.toColumn === focusedCell.columnIndex
+              ? 1
+              : 0),
+    ),
+    Math.min(
+      data.length - 1,
+      selectedRange.toRow +
+        (selectedRange.toRow <= focusedCell.rowIndex
+          ? 0
+          : key === "ArrowUp"
+            ? -1
+            : key === "ArrowDown"
+              ? 1
+              : 0),
+    ),
+    Math.min(
+      leafColumns.length - 1,
+      selectedRange.toColumn +
+        (selectedRange.toColumn <= focusedCell.columnIndex
+          ? 0
+          : key === "ArrowLeft"
+            ? -1
+            : key === "ArrowRight"
+              ? 1
+              : 0),
+    ),
+  );
+  return r;
 }

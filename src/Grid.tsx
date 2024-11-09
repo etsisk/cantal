@@ -127,7 +127,7 @@ interface GridProps {
   columnSorts?: { [key: string]: string };
   data: Record<string, unknown>[];
   filters?: { [key: string]: string };
-  focusedCell?: { columnIndex: number; rowIndex: number } | null;
+  focusedCell?: Cell | null;
   gap?: number | { columnGap: number; rowGap: number };
   handleFocusedCellChange?: (
     focusedCell: Cell,
@@ -162,6 +162,7 @@ interface GridProps {
   id?: string;
   rowHeight?: number;
   selectedRanges?: Range[];
+  selectionFollowsFocus?: boolean;
   styles?: {
     container: CSSProperties;
   };
@@ -191,6 +192,7 @@ export function Grid({
       rowGap={typeof gap === "number" ? gap : gap.rowGap}
       rowHeight={rowHeight}
       selectedRanges={selectedRanges}
+      selectionFollowsFocus={selectionFollowsFocus}
       styles={styles}
     />
   ),
@@ -231,6 +233,7 @@ export function Grid({
   ),
   rowHeight,
   selectedRanges = [],
+  selectionFollowsFocus,
   styles,
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);

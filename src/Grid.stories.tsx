@@ -7,7 +7,7 @@ import {
   Grid,
   type Point,
 } from "./Grid";
-import type { Cell } from "./Body";
+import { type Cell, range, type Range } from "./Body";
 import type { FilterProps } from "./Filter";
 import { colDefs, data, groupedColumnDefs } from "./stories";
 
@@ -404,14 +404,51 @@ export function CellSelection() {
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   const [startPoint, setStartPoint] = useState<Point | undefined>(undefined);
   const [endPoint, setEndPoint] = useState<Point | undefined>(undefined);
+  const [selectionMode, setSelectionMode] = useState<string>("unmanaged");
 
   return (
     <>
       <h3>TODO</h3>
-      <ul>
+      <ol>
         <li>Integrate the selection box as part of Cantal</li>
-      </ul>
-
+        <li>Test on touch device</li>
+      </ol>
+      <fieldset style={{ marginBlock: "0.5rem" }}>
+        <legend>Cell selection</legend>
+        <label style={{ display: "block", marginBlock: "0.5rem" }}>
+          <input
+            checked={selectionMode === "unmanaged"}
+            id="unmanaged"
+            onChange={() => setSelectionMode("unmanaged")}
+            name="selection-mode"
+            type="radio"
+          />{" "}
+          Unmanaged - allows for cell focus to be independent of cell selection
+        </label>
+        <label style={{ display: "block", marginBlock: "0.5rem" }}>
+          <input
+            checked={selectionMode === "app-managed"}
+            id="app-managed"
+            name="selection-mode"
+            onChange={() => setSelectionMode("app-managed")}
+            type="radio"
+          />{" "}
+          App-managed - app logic can define the relationship between cell focus
+          and cell selection
+        </label>
+        <label style={{ display: "block", marginBlock: "0.5rem" }}>
+          <input
+            checked={selectionMode === "lib-managed"}
+            id="lib-managed"
+            name="selection-mode"
+            onChange={() => setSelectionMode("lib-managed")}
+            type="radio"
+          />{" "}
+          Lib-managed - <code>selectionFollowsFocus</code> keeps cell selection
+          updated on cell focus change. It's handy when row spanning is enabled
+          because Cantal calculates the ranges for you.
+        </label>
+      </fieldset>
       <Grid
         columnDefs={colDefs}
         data={data}
@@ -424,6 +461,10 @@ export function CellSelection() {
           if (cell) {
             setFocusedCell(cell);
             setStartPoint(point);
+            if (selectionMode === "app-managed") {
+              const appRange = range(cell.rowIndex, cell.columnIndex);
+              setSelectedRanges([appRange]);
+            }
           }
         }}
         handleSelection={(selectedRanges: Range[], endPoint: Point) => {
@@ -431,6 +472,7 @@ export function CellSelection() {
           setEndPoint(endPoint);
         }}
         selectedRanges={selectedRanges}
+        selectionFollowsFocus={selectionMode === "lib-managed"}
       />
       {startPoint && endPoint && startPoint !== endPoint && (
         <div
