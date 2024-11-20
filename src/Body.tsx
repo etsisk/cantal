@@ -54,6 +54,7 @@ interface BodyProps {
   rowHeight?: number;
   selectedRanges: Range[];
   selectionFollowsFocus?: boolean;
+  showSelectionBox?: boolean;
   styles: CSSProperties;
 }
 
@@ -74,6 +75,7 @@ export function Body({
   rowHeight = 27,
   selectedRanges,
   selectionFollowsFocus = false,
+  showSelectionBox,
   styles,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,9 @@ export function Body({
     undefined,
   );
   const [startDragPoint, setStartDragPoint] = useState<Point | undefined>(
+    undefined,
+  );
+  const [endDragPoint, setEndDragPoint] = useState<Point | undefined>(
     undefined,
   );
 
@@ -161,12 +166,16 @@ export function Body({
         point,
         e,
       );
+      if (showSelectionBox) {
+        setEndDragPoint(point);
+      }
     }
 
     function pointerUp(e: PointerEvent<Element>) {
       handleSelection(selectedRanges, null, e);
       setStartDragCell(undefined);
       setStartDragPoint(undefined);
+      setEndDragPoint(undefined);
     }
     if (startDragCell) {
       window.addEventListener("pointermove", pointerMove);
@@ -177,7 +186,7 @@ export function Body({
       window.removeEventListener("pointermove", pointerMove);
       window.removeEventListener("pointerup", pointerUp);
     };
-  }, [selectedRanges, startDragCell]);
+  }, [selectedRanges, showSelectionBox, startDragCell]);
 
   // TODO: `getViewportBoundingBox` should live somewhere else
   function getViewportBoundingBox(
@@ -300,6 +309,7 @@ export function Body({
       };
 
       handleFocusedCellChange(newFocusedCell, e);
+      setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "down") {
       if (focusedCell.rowIndex >= data.length - 1) {
         return false;
@@ -311,6 +321,7 @@ export function Body({
       };
 
       handleFocusedCellChange(newFocusedCell, e);
+      setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "left") {
       if (focusedCell.columnIndex === 0) {
         if (wrap) {
@@ -325,6 +336,7 @@ export function Body({
           };
 
           handleFocusedCellChange(newFocusedCell, e);
+          setSelectionRangeToFocusedCell(newFocusedCell, e);
           return true;
         } else {
           return false;
@@ -337,6 +349,7 @@ export function Body({
       };
 
       handleFocusedCellChange(newFocusedCell, e);
+      setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "right") {
       if (focusedCell.columnIndex >= leafColumns.length - 1) {
         if (wrap) {
@@ -352,7 +365,7 @@ export function Body({
           };
 
           handleFocusedCellChange(newFocusedCell, e);
-
+          setSelectionRangeToFocusedCell(newFocusedCell, e);
           return true;
         } else {
           return false;
@@ -365,6 +378,7 @@ export function Body({
       };
 
       handleFocusedCellChange(newFocusedCell, e);
+      setSelectionRangeToFocusedCell(newFocusedCell, e);
     }
     return true;
   }
@@ -717,6 +731,17 @@ export function Body({
           )}
         </div>
       </div>
+      {showSelectionBox && startDragPoint && endDragPoint && (
+        <div
+          className="cantal-selection-box"
+          style={{
+            height: Math.abs(startDragPoint.y - endDragPoint.y),
+            left: Math.min(startDragPoint.x, endDragPoint.x),
+            top: Math.min(startDragPoint.y, endDragPoint.y),
+            width: Math.abs(startDragPoint.x - endDragPoint.x),
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -41,7 +41,7 @@
   background-color: var(--header-background-color);
   color: var(--header-color);
   padding: 4px;
-  /* position: sticky; *//* Needed to make the absolutely positioned resizer go in the right place */
+  /* position: sticky; */ /* Needed to make the absolutely positioned resizer go in the right place */
 }
 
 .cantal-headercell-content {
@@ -123,6 +123,13 @@
   );
 }
 
+.cantal-selection-box {
+  background-color: rgba(125, 200, 255, 0.18);
+  border: 1px solid rgb(34, 119, 221);
+  pointer-events: none;
+  position: absolute;
+}
+
 [data-theme="dark"] {
   --background-color: #555;
   --border-color: #555;
@@ -132,4 +139,3 @@
   --cell-pinned-background-color: #333;
   --cell-color: #f5f7f7;
 }
-

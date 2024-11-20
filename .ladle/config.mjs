@@ -12,5 +12,6 @@ export default {
     "grid--pinned-columns",
     "grid--cell-focus",
     "grid--cell-selection",
+    "grid--cell-copy",
   ],
 };

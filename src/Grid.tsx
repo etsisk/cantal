@@ -163,6 +163,7 @@ interface GridProps {
   rowHeight?: number;
   selectedRanges?: Range[];
   selectionFollowsFocus?: boolean;
+  showSelectionBox?: boolean;
   styles?: {
     container: CSSProperties;
   };
@@ -193,6 +194,7 @@ export function Grid({
       rowHeight={rowHeight}
       selectedRanges={selectedRanges}
       selectionFollowsFocus={selectionFollowsFocus}
+      showSelectionBox={showSelectionBox}
       styles={styles}
     />
   ),
@@ -234,6 +236,7 @@ export function Grid({
   rowHeight,
   selectedRanges = [],
   selectionFollowsFocus,
+  showSelectionBox,
   styles,
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);

@@ -402,17 +402,23 @@ export function CellFocus() {
 export function CellSelection() {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
-  const [startPoint, setStartPoint] = useState<Point | undefined>(undefined);
-  const [endPoint, setEndPoint] = useState<Point | undefined>(undefined);
   const [selectionMode, setSelectionMode] = useState<string>("unmanaged");
+  const [showSelection, setShowSelection] = useState<boolean>(true);
 
   return (
     <>
       <h3>TODO</h3>
-      <ol>
-        <li>Integrate the selection box as part of Cantal</li>
+      <ul>
         <li>Test on touch device</li>
-      </ol>
+      </ul>
+      <label>
+        <input
+          checked={showSelection}
+          onChange={() => setShowSelection((prev) => !prev)}
+          type="checkbox"
+        />{" "}
+        Draw selection area
+      </label>
       <fieldset style={{ marginBlock: "0.5rem" }}>
         <legend>Cell selection</legend>
         <label style={{ display: "block", marginBlock: "0.5rem" }}>
@@ -460,7 +466,6 @@ export function CellSelection() {
         ) => {
           if (cell) {
             setFocusedCell(cell);
-            setStartPoint(point);
             if (selectionMode === "app-managed") {
               const appRange = range(cell.rowIndex, cell.columnIndex);
               setSelectedRanges([appRange]);
@@ -469,24 +474,42 @@ export function CellSelection() {
         }}
         handleSelection={(selectedRanges: Range[], endPoint: Point) => {
           setSelectedRanges(selectedRanges);
-          setEndPoint(endPoint);
         }}
         selectedRanges={selectedRanges}
         selectionFollowsFocus={selectionMode === "lib-managed"}
+        showSelectionBox={showSelection}
       />
-      {startPoint && endPoint && startPoint !== endPoint && (
-        <div
-          style={{
-            backgroundColor: "rgba(125, 200, 255, 0.18)",
-            border: "1px solid rgb(34, 119, 221)",
-            height: Math.abs(startPoint.y - endPoint.y),
-            width: Math.abs(startPoint.x - endPoint.x),
-            left: Math.min(startPoint.x, endPoint.x) + 45,
-            top: Math.min(startPoint.y, endPoint.y) + 75,
-            position: "absolute",
-          }}
-        />
-      )}
     </>
+  );
+}
+
+export function CellCopy() {
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
+  return (
+    <div>
+      <h1>TODO: add clipboard functionality</h1>
+      <p>
+        Press Cmd+C or Ctrl+C to copy the selected range to the system clipboard
+      </p>
+      <Grid
+        columnDefs={colDefs}
+        data={data}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(
+          cell: Cell,
+          e: PointerEvent<HTMLDivElement>,
+          point: Point,
+        ) => {
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
+        handleSelection={(selectedRanges: Range[], endPoint: Point) => {
+          setSelectedRanges(selectedRanges);
+        }}
+        selectedRanges={selectedRanges}
+      />
+    </div>
   );
 }
