@@ -487,29 +487,23 @@ export function CellCopy() {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   return (
-    <div>
-      <h1>TODO: add clipboard functionality</h1>
-      <p>
-        Press Cmd+C or Ctrl+C to copy the selected range to the system clipboard
-      </p>
-      <Grid
-        columnDefs={colDefs}
-        data={data}
-        focusedCell={focusedCell}
-        handleFocusedCellChange={(
-          cell: Cell,
-          e: PointerEvent<HTMLDivElement>,
-          point: Point,
-        ) => {
-          if (cell) {
-            setFocusedCell(cell);
-          }
-        }}
-        handleSelection={(selectedRanges: Range[], endPoint: Point) => {
-          setSelectedRanges(selectedRanges);
-        }}
-        selectedRanges={selectedRanges}
-      />
-    </div>
+    <Grid
+      columnDefs={colDefs}
+      data={data}
+      focusedCell={focusedCell}
+      handleFocusedCellChange={(
+        cell: Cell,
+        e: PointerEvent<HTMLDivElement>,
+        point: Point,
+      ) => {
+        if (cell) {
+          setFocusedCell(cell);
+        }
+      }}
+      handleSelection={(selectedRanges: Range[], endPoint: Point) => {
+        setSelectedRanges(selectedRanges);
+      }}
+      selectedRanges={selectedRanges}
+    />
   );
 }
