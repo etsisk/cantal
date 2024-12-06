@@ -145,7 +145,7 @@ interface GridProps {
   handleSelection?: (
     selectedRanges: Range[],
     endPoint: Point,
-    e: PointerEvent<Window>,
+    e: PointerEvent<Window> | KeyboardEvent<HTMLDivElement>,
   ) => void;
   handleSort?: (
     nextSortMode: { [key: string]: string },

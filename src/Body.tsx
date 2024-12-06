@@ -1,7 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent,
-  type PointerEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefObject,
   type SyntheticEvent,
   type UIEvent,
@@ -46,7 +46,10 @@ interface BodyProps {
   handleSelection?: (
     selectedRanges: Range[],
     endPoint: Point,
-    e: PointerEvent<Element>,
+    e:
+      | PointerEvent
+      | ReactPointerEvent<HTMLDivElement>
+      | KeyboardEvent<HTMLDivElement>,
   ) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
@@ -147,7 +150,7 @@ export function Body({
   }, [columnGap, focusedCell, leafColumns]);
 
   useEffect(() => {
-    function pointerMove(e: PointerEvent<Element>) {
+    function pointerMove(e: PointerEvent): void {
       const cell = getCellFromEvent(e);
       const point = getPointFromEvent(e, canvasRef.current);
 
@@ -172,7 +175,7 @@ export function Body({
       }
     }
 
-    function pointerUp(e: PointerEvent<Element>) {
+    function pointerUp(e: PointerEvent) {
       handleSelection(selectedRanges, null, e);
       setStartDragCell(undefined);
       setStartDragPoint(undefined);
@@ -242,7 +245,10 @@ export function Body({
     navigator.clipboard.writeText(str);
   }
 
-  function handleEvent(e: PointerEvent<Element>, eventLabel: string) {}
+  function handleEvent(
+    e: PointerEvent | ReactPointerEvent<HTMLDivElement>,
+    eventLabel: string,
+  ) {}
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!focusedCell) {
@@ -270,7 +276,7 @@ export function Body({
         handleSelection
       ) {
         // TODO: make `point` optional?
-        const point = getPointFromEvent(e, canvasRef.current);
+        // const point = getPointFromEvent(e, canvasRef.current);
         handleSelection(
           [
             getExpandedSelectionRangeOnKey(
@@ -281,7 +287,9 @@ export function Body({
               leafColumns,
             ),
           ],
-          point,
+          // TODID: Made `point` null - doesn't make sense for keyboard event
+          // point,
+          null,
           e,
         );
       } else {
@@ -413,7 +421,7 @@ export function Body({
     }
   }
 
-  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+  function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     const cell = getCellFromEvent(e);
     const point = getPointFromEvent(e, canvasRef.current);
     if (!cell) {
@@ -434,7 +442,7 @@ export function Body({
   }
 
   function defaultHandlePointerDown(
-    e: PointerEvent<HTMLDivElement>,
+    e: ReactPointerEvent<HTMLDivElement>,
     cell: Cell,
     point: Point,
   ): void {
@@ -542,7 +550,7 @@ export function Body({
         className="cantal-body-canvas"
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
-        onPointerUp={(e: PointerEvent<HTMLDivElement>) =>
+        onPointerUp={(e: ReactPointerEvent<HTMLDivElement>) =>
           handleEvent(e, "onPointerUp")
         }
         ref={canvasRef}
@@ -551,8 +559,8 @@ export function Body({
         {focusedCell && leafColumns[focusedCell.columnIndex] && (
           <div
             aria-label={
-              typeof leafColumns[focusedCell.columnIndex].ariaCellLabel ===
-              "function"
+              leafColumns[focusedCell.columnIndex].ariaCellLabel instanceof
+              Function
                 ? leafColumns[focusedCell.columnIndex].ariaCellLabel({
                     def: leafColumns[focusedCell.columnIndex],
                     columnIndex: focusedCell.columnIndex,
@@ -630,12 +638,27 @@ export function Body({
                           focusedCell?.columnIndex === columnIndex;
                         return (
                           <Cell
+                            ariaLabel={
+                              typeof columnDef.ariaCellLabel === "function"
+                                ? columnDef.ariaCellLabel({
+                                    columnIndex,
+                                    data: row,
+                                    def: columnDef,
+                                    rowIndex,
+                                    value: row[columnDef.field],
+                                  })
+                                : columnDef.ariaCellLabel
+                            }
                             columnDef={columnDef}
                             columnIndex={columnIndex}
                             isFocused={isFocused}
                             key={`${rowIndex}-${columnIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
+                            selected={rangesContainCell(selectedRanges, {
+                              columnIndex,
+                              rowIndex,
+                            })}
                           >
                             {row[columnDef.field]}
                           </Cell>
@@ -657,12 +680,27 @@ export function Body({
                         focusedCell?.columnIndex === colIndex;
                       return (
                         <Cell
+                          ariaLabel={
+                            typeof columnDef.ariaCellLabel === "function"
+                              ? columnDef.ariaCellLabel({
+                                  columnIndex,
+                                  data: row,
+                                  def: columnDef,
+                                  rowIndex,
+                                  value: row[columnDef.field],
+                                })
+                              : columnDef.ariaCellLabel
+                          }
                           columnDef={columnDef}
                           columnIndex={colIndex}
                           isFocused={isFocused}
                           key={`${rowIndex}-${colIndex}`}
                           position={positions.get(columnDef)}
                           rowIndex={rowIndex}
+                          selected={rangesContainCell(selectedRanges, {
+                            columnIndex,
+                            rowIndex,
+                          })}
                         >
                           {row[columnDef.field]}
                         </Cell>
@@ -685,12 +723,27 @@ export function Body({
                           focusedCell?.columnIndex === colIndex;
                         return (
                           <Cell
+                            ariaLabel={
+                              typeof columnDef.ariaCellLabel === "function"
+                                ? columnDef.ariaCellLabel({
+                                    columnIndex,
+                                    data: row,
+                                    def: columnDef,
+                                    rowIndex,
+                                    value: row[columnDef.field],
+                                  })
+                                : columnDef.ariaCellLabel
+                            }
                             columnDef={columnDef}
                             columnIndex={colIndex}
                             isFocused={isFocused}
                             key={`${rowIndex}-${colIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
+                            selected={rangesContainCell(selectedRanges, {
+                              columnIndex,
+                              rowIndex,
+                            })}
                           >
                             {row[columnDef.field]}
                           </Cell>
@@ -756,7 +809,7 @@ export function Body({
   );
 }
 
-function getCellFromEvent(event: SyntheticEvent) {
+function getCellFromEvent(event: SyntheticEvent | PointerEvent) {
   const element: HTMLElement = event.target as HTMLElement;
   const cell = element.closest("[role=gridcell]");
   if (!cell) {
@@ -775,7 +828,7 @@ function getCellFromEvent(event: SyntheticEvent) {
 }
 
 function getPointFromEvent(
-  event: PointerEvent<Element>,
+  event: PointerEvent | ReactPointerEvent<HTMLDivElement>,
   element: HTMLDivElement,
 ): Point {
   return {
