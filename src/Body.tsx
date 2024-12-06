@@ -44,7 +44,7 @@ interface BodyProps {
   handleKeyDown: (args: HandleKeyDownArgs) => void;
   handlePointerDown: (args: HandlePointerDownArgs) => void;
   handleSelection?: (
-    selectedRanges: Range[],
+    selectedRanges: IndexedArray<Range>,
     endPoint: Point,
     e:
       | PointerEvent
@@ -56,7 +56,7 @@ interface BodyProps {
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   rowGap: number;
   rowHeight?: number;
-  selectedRanges: Range[];
+  selectedRanges: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
   showSelectionBox?: boolean;
   styles: CSSProperties;
@@ -152,13 +152,15 @@ export function Body({
   useEffect(() => {
     function pointerMove(e: PointerEvent): void {
       const cell = getCellFromEvent(e);
-      const point = getPointFromEvent(e, canvasRef.current);
+      const point = canvasRef.current
+        ? getPointFromEvent(e, canvasRef.current)
+        : null;
 
-      if (!cell) {
+      if (!cell || !startDragCell) {
         return;
       }
 
-      handleSelection(
+      handleSelection?.(
         [
           range(
             startDragCell.rowIndex,
@@ -170,13 +172,13 @@ export function Body({
         point,
         e,
       );
-      if (showSelectionBox) {
+      if (showSelectionBox && point !== null) {
         setEndDragPoint(point);
       }
     }
 
     function pointerUp(e: PointerEvent) {
-      handleSelection(selectedRanges, null, e);
+      handleSelection?.(selectedRanges, null, e);
       setStartDragCell(undefined);
       setStartDragPoint(undefined);
       setEndDragPoint(undefined);
@@ -837,7 +839,7 @@ function getPointFromEvent(
   };
 }
 
-function rangesContainCell(ranges: Range[], cell: Cell): boolean {
+function rangesContainCell(ranges: IndexedArray<Range>, cell: Cell): boolean {
   if (!cell) {
     return false;
   }
@@ -863,6 +865,10 @@ export interface Range {
   toColumn: number;
   toRow: number;
   toString: () => string;
+}
+
+export interface IndexedArray<T> extends Array<T> {
+  [index: number]: T;
 }
 
 export function range(
@@ -938,7 +944,7 @@ export function range(
 
 function getExpandedSelectionRangeOnKey(
   key: string,
-  focusedCell: Cell | null,
+  focusedCell: Cell,
   selectedRange: Range,
   data: Record<string, unknown>[],
   leafColumns: LeafColumn[],
@@ -998,7 +1004,7 @@ function getExpandedSelectionRangeOnKey(
 function getCopyMatrix(
   data: DataRow[],
   leafColumns: LeafColumn[],
-  selectedRanges: Range[],
+  selectedRanges: IndexedArray<Range>,
 ): unknown[][] {
   if (selectedRanges === null || selectedRanges.length === 0) {
     return [];
@@ -1033,7 +1039,7 @@ function getCopyMatrix(
       const columnDef = leafColumns[column];
 
       // TODO: Verify valueGetter design
-      // if (columnDef.valueGetter) {
+      // if (columnDef?.valueGetter) {
       // matrix[rowIndex][columnIndex] = columnDef.valueGetter({
       // colDef: columnDef,
       // data: dataRow,
@@ -1042,7 +1048,7 @@ function getCopyMatrix(
       // continue;
       // }
 
-      if (columnDef.valueRenderer) {
+      if (columnDef?.valueRenderer) {
         const renderedValue = columnDef.valueRenderer({
           columnDef,
           data: dataRow,
@@ -1062,8 +1068,8 @@ function getCopyMatrix(
   return matrix;
 }
 
-function getMergedRangeFromRanges(ranges: Range[]): Range {
+function getMergedRangeFromRanges(ranges: IndexedArray<Range>): Range {
   return ranges
     .slice(1)
-    .reduce((merged, range) => merged.merge(range), ranges[0]);
+    .reduce((merged: Range, range) => merged.merge(range), ranges[0]);
 }

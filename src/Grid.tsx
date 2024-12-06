@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Body, type Cell } from "./Body";
+import { Body, type Cell, type IndexedArray, type Range } from "./Body";
 import { Header } from "./Header";
 import { Filter } from "./Filter";
 import type { SortState } from "./Sorter";
@@ -143,7 +143,7 @@ interface GridProps {
     columnDefs: ColumnDefWithDefaults[],
   ) => void;
   handleSelection?: (
-    selectedRanges: Range[],
+    selectedRanges: IndexedArray<Range>,
     endPoint: Point,
     e: PointerEvent<Window> | KeyboardEvent<HTMLDivElement>,
   ) => void;
@@ -161,7 +161,7 @@ interface GridProps {
   ) => ReactNode;
   id?: string;
   rowHeight?: number;
-  selectedRanges?: Range[];
+  selectedRanges?: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
   showSelectionBox?: boolean;
   styles?: {

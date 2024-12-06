@@ -1,4 +1,4 @@
-import { type ChangeEvent, PointerEvent, useRef, useState } from "react";
+import { type ChangeEvent, type PointerEvent, useRef, useState } from "react";
 import {
   type ColumnDef,
   type ColumnDefWithDefaults,
