@@ -10,7 +10,6 @@ import { HeaderCell } from "./HeaderCell";
 interface HeaderProps {
   canvasWidth: string;
   columnDefs: ColumnDefWithDefaults[];
-  sorts: { [key: string]: string };
   filters: { [key: string]: string };
   handleFilter: (field: string, value: string) => void;
   handleResize: (
@@ -19,12 +18,13 @@ interface HeaderProps {
     columnDefs: ColumnDefWithDefaults[],
   ) => void;
   handleSort: (
-    nextSortMode: { [key: string]: string },
+    nextSortMode: { [key: string]: string } | undefined,
     e: PointerEvent<HTMLButtonElement>,
   ) => void;
   leafColumns: LeafColumn[];
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   ref: { current: any };
+  sorts: { [key: string]: string };
   styles: CSSProperties;
 }
 
@@ -69,12 +69,22 @@ export function Header({
           Math.round((def.width * newWidth) / totalLeafColWidth),
         ),
       }));
-      const resizedColumnDefs = childLeafColumns.reduce((resized, def, i) => {
-        if (resized.length === 0) {
-          return replaceColumn(columnDefs, def, newDefs[i]);
-        }
-        return replaceColumn(resized, def, newDefs[i]);
-      }, []);
+      const resizedColumnDefs = childLeafColumns.reduce(
+        (
+          resized: ColumnDefWithDefaults[],
+          def: LeafColumn | ColumnDefWithDefaults,
+          i: number,
+        ) => {
+          if (newDefs[i] === undefined) {
+            return resized;
+          }
+          if (resized.length === 0) {
+            return replaceColumn(columnDefs, def, newDefs[i]);
+          }
+          return replaceColumn(resized, def, newDefs[i]);
+        },
+        [],
+      );
       handleResize(columnDef.field, newWidth, resizedColumnDefs);
     } else if (columnDef) {
       const newWidth = columnWidth + delta;
@@ -135,16 +145,16 @@ export function Header({
     return Object.hasOwn(def, "ancestors");
   }
 
-  const viewportStyles = {
+  const viewportStyles: CSSProperties = {
     overflow: "hidden",
     width: "inherit",
   };
 
-  const canvasStyles = {
+  const canvasStyles: CSSProperties = {
     width: canvasWidth,
   };
 
-  const pinnedStyles = {
+  const pinnedStyles: CSSProperties = {
     ...styles,
     backgroundColor: "var(--background-color)",
     display: "grid",
@@ -153,12 +163,12 @@ export function Header({
     position: "sticky",
   };
 
-  const pinnedStartStyles = {
+  const pinnedStartStyles: CSSProperties = {
     ...pinnedStyles,
     gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
   };
 
-  const unpinnedStyles = {
+  const unpinnedStyles: CSSProperties = {
     ...styles,
     display: "grid",
     gridColumn: `${pinnedStartLeafColumns.length + 1} / ${
@@ -167,7 +177,7 @@ export function Header({
     gridTemplateColumns: "subgrid",
   };
 
-  const pinnedEndStyles = {
+  const pinnedEndStyles: CSSProperties = {
     ...pinnedStyles,
     gridColumn: `${leafColumns.length - pinnedEndLeafColumns.length + 1} / ${
       leafColumns.length + 1
@@ -247,19 +257,21 @@ export function Header({
             </>
           ) : (
             <>
-              {getFlattenedColumns(leafColumns).map((def: LeafColumn) => (
-                <HeaderCell
-                  columnDef={def}
-                  filterer={def.filterer}
-                  filters={filters}
-                  handleFilter={handleFilter}
-                  handleResize={handleColumnResize}
-                  handleSort={handleSort}
-                  key={def.field}
-                  position={positions.get(def)}
-                  sorts={sorts}
-                />
-              ))}
+              {getFlattenedColumns(leafColumns).map(
+                (def: LeafColumn | ColumnDefWithDefaults) => (
+                  <HeaderCell
+                    columnDef={def}
+                    filterer={def.filterer}
+                    filters={filters}
+                    handleFilter={handleFilter}
+                    handleResize={handleColumnResize}
+                    handleSort={handleSort}
+                    key={def.field}
+                    position={positions.get(def)}
+                    sorts={sorts}
+                  />
+                ),
+              )}
             </>
           )}
         </div>
@@ -282,7 +294,7 @@ export function Header({
 // }
 
 function getFlattenedColumns(leafColumns: LeafColumn[]) {
-  const columnsSeen = {};
+  const columnsSeen: Record<string, boolean> = {};
   const flattenedColumns = [];
   for (let leafColumn of leafColumns) {
     for (let ancestor of leafColumn.ancestors) {

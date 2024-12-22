@@ -1,12 +1,13 @@
 import { type FC, type PointerEvent, useRef, useState } from "react";
-import type { ColumnDefWithDefaults, Position } from "./Grid";
+import type { ColumnDefWithDefaults, NonEmptyArray, Position } from "./Grid";
 import { Resizer } from "./Resizer";
 import { Sorter, type SortState } from "./Sorter";
+import type { FiltererProps } from "./Filter";
 
 interface HeaderCellProps {
   columnDef: ColumnDefWithDefaults;
   filters: { [key: string]: string };
-  filterer: FC | null;
+  filterer: FC<FiltererProps> | null;
   handleFilter: (field: string, value: string) => void;
   handleResize: (
     columnDef: ColumnDefWithDefaults,
@@ -14,10 +15,10 @@ interface HeaderCellProps {
     delta: number,
   ) => void;
   handleSort: (
-    nextSortMode: { [key: string]: string },
+    nextSortMode: { [key: string]: string } | undefined,
     e: PointerEvent<HTMLButtonElement>,
   ) => void;
-  position: Position;
+  position: Position | undefined;
   sorts: { [key: string]: string };
 }
 
@@ -46,10 +47,15 @@ export function HeaderCell({
     return columnDef.width;
   }
 
+  if (position === undefined) {
+    console.warn("Column definition not found.");
+    return null;
+  }
+
   return (
     <div
       aria-label={
-        typeof columnDef?.ariaHeaderCellLabel === "function"
+        isFn(columnDef.ariaHeaderCellLabel)
           ? columnDef.ariaHeaderCellLabel({ def: columnDef, position })
           : columnDef.ariaHeaderCellLabel
       }
@@ -67,15 +73,20 @@ export function HeaderCell({
     >
       <div className="cantal-headercell-content">
         <div className="cantal-headercell-label">
-          {columnDef.sortable ? (
+          {columnDef.sortable && columnDef.sortStates.length ? (
             <>
               <span className="cantal-headercell-label-text">
                 {columnDef.title}
               </span>
               <Sorter
                 className="cantal-headercell-sorter"
-                handleSort={(e) => handleSort(updateSorts(columnDef, sorts), e)}
-                state={findState(columnDef, sorts)}
+                handleSort={(e) =>
+                  handleSort(
+                    updateSorts(columnDef.field, sorts, columnDef.sortStates),
+                    e,
+                  )
+                }
+                state={findState(columnDef.field, sorts, columnDef.sortStates)}
               />
             </>
           ) : (
@@ -108,45 +119,56 @@ export function HeaderCell({
 }
 
 function updateSorts(
-  def: ColumnDefWithDefaults,
+  field: string,
   sorting: { [key: string]: string },
-): { [key: string]: string } {
-  const currentSortState = def.sortStates.find(
-    (state) => state.label === sorting[def.field],
+  states: NonEmptyArray<SortState>,
+): { [key: string]: string } | undefined {
+  const currentSortState = states.find(
+    (state) => state.label === sorting[field],
   );
-  const nextMode = getNextSortLabel(
-    currentSortState,
-    def.sortStates.filter((state) => state.iterable !== false),
-  );
-  return { [def.field]: nextMode };
+  const iterableStates = states.filter((state) => state.iterable !== false);
+
+  if (isNonEmptyArray(iterableStates)) {
+    const nextMode = getNextSortLabel(currentSortState, iterableStates);
+    return { [field]: nextMode };
+  }
+
+  return sorting;
 }
 
 function getNextSortLabel(
   currentState: SortState | undefined,
-  states: SortState[],
+  states: NonEmptyArray<SortState>,
 ) {
   const currentIndex = states.findIndex(
     (state) => state.label === currentState?.label,
   );
   const nextIndex = (currentIndex + 1) % states.length;
-  return states[nextIndex].label;
+  return states[nextIndex]?.label ?? states[0].label;
 }
 
 function findState(
-  def: ColumnDefWithDefaults,
+  field: string,
   sorting: { [key: string]: string },
+  states: NonEmptyArray<SortState>,
 ): SortState {
-  const foundByLabel = def.sortStates.find(
-    (state) => state.label === sorting[def.field],
-  );
+  const foundByLabel = states.find((state) => state.label === sorting[field]);
   if (foundByLabel) {
     return foundByLabel;
   }
-  const foundByIterable = def.sortStates.find(
-    (state) => state.iterable === false,
-  );
+  const foundByIterable = states.find((state) => state.iterable === false);
   if (foundByIterable) {
     return foundByIterable;
   }
-  return def.sortStates[0];
+  return states[0];
+}
+
+function isNonEmptyArray<Type>(arr: Type[]): arr is NonEmptyArray<Type> {
+  return arr.length > 0;
+}
+
+function isFn(
+  maybeFn: string | ((...args: unknown[]) => string),
+): maybeFn is (...args: unknown[]) => string {
+  return typeof maybeFn === "function";
 }

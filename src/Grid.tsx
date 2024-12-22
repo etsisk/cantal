@@ -2,7 +2,7 @@ import {
   type CSSProperties,
   type FC,
   type KeyboardEvent,
-  type PointerEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -13,18 +13,21 @@ import {
 } from "react";
 import { Body, type Cell, type IndexedArray, type Range } from "./Body";
 import { Header } from "./Header";
-import { Filter } from "./Filter";
+import { Filter, type FiltererProps } from "./Filter";
 import type { SortState } from "./Sorter";
 
 type RefCallback<T> = (instance: T | null) => void;
+export type NonEmptyArray<T> = [T, ...T[]];
+type TFilterProps<T> = FC<T>;
 
+export type DataRow = Record<string, unknown>;
 export interface ColumnDef {
   ariaCellLabel?:
     | string
     | ((props: {
         columnIndex: number;
-        data: { [key: string]: unknown };
-        def: ColumnDef;
+        data: DataRow;
+        def: ColumnDefWithDefaults;
         rowIndex: number;
         value: unknown;
       }) => string);
@@ -33,18 +36,18 @@ export interface ColumnDef {
     | ((props: { def: ColumnDefWithDefaults; position: Position }) => string);
   field: string;
   filterable?: boolean;
-  filterer?: FC;
+  filterer?: TFilterProps<FiltererProps>;
   minWidth?: number;
   pinned?: "start" | "end";
   resizable?: boolean;
   sortable?: boolean;
-  sortStates?: SortState[];
+  sortStates?: NonEmptyArray<SortState>;
   subcolumns?: ColumnDef[];
   title?: string;
-  valueRenderer?: (args: {
-    columnDef: ColumnDefWithDefaults;
-    data: { [key: string]: unknown };
-    value: unknown;
+  valueRenderer?: <T>(args: {
+    columnDef: LeafColumn;
+    data: DataRow;
+    value: T;
   }) => ReactNode;
   width?: string | number;
 }
@@ -54,20 +57,20 @@ export interface ColumnDefWithDefaults extends ColumnDef {
     | string
     | ((props: {
         columnIndex: number;
-        data: { [key: string]: unknown };
-        def: ColumnDef;
+        data: DataRow;
+        def: ColumnDefWithDefaults;
         rowIndex: number;
         value: unknown;
       }) => string);
   ariaHeaderCellLabel: string;
-  filterer: FC;
+  filterer: TFilterProps<FiltererProps>;
   minWidth: number;
-  sortStates: SortState[];
+  sortStates: NonEmptyArray<SortState>;
   subcolumns: ColumnDefWithDefaults[];
-  valueRenderer: (args: {
-    columnDef: ColumnDefWithDefaults;
-    data: { [key: string]: unknown };
-    value: unknown;
+  valueRenderer: <T>(args: {
+    columnDef: LeafColumn;
+    data: DataRow;
+    value: T;
   }) => ReactNode;
   width: number;
 }
@@ -95,19 +98,15 @@ export interface Point {
   y: number;
 }
 
-export interface DataRow {
-  [key: string]: unknown;
-}
-
 export interface HandleKeyDownArgs {
   e: KeyboardEvent<HTMLDivElement>;
   cell: Cell;
-  columnDef: ColumnDefWithDefaults;
+  columnDef: LeafColumn;
   defaultHandler: () => void;
 }
 
 export interface HandlePointerDownArgs {
-  e: PointerEvent<HTMLDivElement>;
+  e: ReactPointerEvent<HTMLDivElement>;
   cell: Cell;
   point: Point;
   columnDef: ColumnDefWithDefaults;
@@ -125,7 +124,7 @@ interface GridProps {
   ) => ReactNode;
   columnDefs: ColumnDef[];
   columnSorts?: { [key: string]: string };
-  data: Record<string, unknown>[];
+  data: DataRow[];
   filters?: { [key: string]: string };
   focusedCell?: Cell | null;
   gap?: number | { columnGap: number; rowGap: number };
@@ -144,16 +143,19 @@ interface GridProps {
   ) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
-    endPoint: Point,
-    e: PointerEvent<Window> | KeyboardEvent<HTMLDivElement>,
+    endPoint: Point | null,
+    e:
+      | PointerEvent
+      | ReactPointerEvent<HTMLDivElement>
+      | KeyboardEvent<HTMLDivElement>,
   ) => void;
   handleSort?: (
-    nextSortMode: { [key: string]: string },
-    e: PointerEvent<HTMLButtonElement>,
+    nextSortMode: { [key: string]: string } | undefined,
+    e: ReactPointerEvent<HTMLButtonElement>,
   ) => void;
   header?: (
     colDefs: ColumnDefWithDefaults[],
-    leafColumns: ColumnDefWithDefaults[],
+    leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     styles: CSSProperties,
     ref: RefObject<HTMLDivElement | null>,
@@ -168,6 +170,7 @@ interface GridProps {
     container: CSSProperties;
   };
 }
+
 export function Grid({
   body = (
     leafColumns: LeafColumn[],
@@ -245,7 +248,9 @@ export function Grid({
   const sizeRef = useCallback((node: HTMLElement) => {
     if (node !== null) {
       const resizeObserver = new ResizeObserver((entries) => {
-        setHeight(entries[0].contentRect.height);
+        if (entries[0]) {
+          setHeight(entries[0].contentRect.height);
+        }
       });
       resizeObserver.observe(node);
     }
@@ -274,7 +279,7 @@ export function Grid({
     rowGap,
   };
 
-  const containerStyles = {
+  const containerStyles: CSSProperties = {
     ...(selectedRanges.length > 0
       ? { WebkitUserSelect: "none", userSelect: "none" }
       : {}),
@@ -313,20 +318,22 @@ const DEFAULT_COLUMN_WIDTH = 100;
 // QUESTION: Avoid setting minWidth, width for columns with subcolumns?
 const columnDefDefaults = {
   ariaCellLabel: ({
-    def,
     columnIndex,
     data,
+    def,
     rowIndex,
     value,
   }: {
-    def: ColumnDefWithDefaults;
     columnIndex: number;
-    data: { [key: string]: unknown };
+    data: DataRow;
+    def: ColumnDefWithDefaults;
     rowIndex: number;
     value: unknown;
   }): string =>
     `Column ${columnIndex + 1}${
-      ["start", "end"].includes(def.pinned) ? ", pinned" : ""
+      typeof def.pinned === "string" && ["start", "end"].includes(def.pinned)
+        ? ", pinned"
+        : ""
     }${def.title ? `, ${def.title}` : ""}`,
   // TODO: Add 'pinned' to header aria label
   ariaHeaderCellLabel: ({
@@ -352,13 +359,13 @@ const columnDefDefaults = {
     { label: "unsorted", symbol: "↑↓", iterable: false },
     { label: "ascending", symbol: "↑", iterable: true },
     { label: "descending", symbol: "↓", iterable: true },
-  ],
+  ] satisfies NonEmptyArray<SortState>,
   subcolumns: [],
   valueRenderer: (args: {
     columnDef: ColumnDefWithDefaults;
-    data: { [key: string]: unknown };
+    data: DataRow;
     value: unknown;
-  }) => args.value,
+  }) => args.value as ReactNode,
   width: DEFAULT_COLUMN_WIDTH,
 };
 
@@ -399,9 +406,11 @@ function applyColumnDefDefaults(
 
 // TODO: Expose API to consumers
 export function getLeafColumns(
-  columnDefs: ColumnDefWithDefaults[],
-  ancestors: ColumnDefWithDefaults[] = [],
+  columnDefs: (ColumnDef | ColumnDefWithDefaults)[],
+  ancestors: (ColumnDef | ColumnDefWithDefaults)[] = [],
 ): LeafColumn[] {
+  // QUESTION: check if defs are of type ColumnDef (or don't)
+  // and applyDefaults since there's an assumption that LeafColumns are a bunch of columns with defaults
   return columnDefs
     .map((def) => {
       if (def.subcolumns && def.subcolumns.length > 0) {
@@ -411,7 +420,7 @@ export function getLeafColumns(
       // TODO: throw column def warning if def.pinned is something other than 'start', 'end', undefined
       if (ancestors.length > 0) {
         const parent = ancestors.at(-1);
-        if (parent.subcolumns.some((d) => d.pinned !== def.pinned)) {
+        if (parent?.subcolumns?.some((d) => d.pinned !== def.pinned)) {
           return {
             ...def,
             ancestors: ancestors.toSpliced(-1, 1, {
@@ -437,9 +446,9 @@ function pinColumns(columnDefs: LeafColumn[]): LeafColumn[] {
         ? -1
         : a.pinned === "end"
           ? 1
-          : !["start", "end"].includes(a.pinned) && b.pinned === "start"
+          : a.pinned === undefined && b.pinned === "start"
             ? 1
-            : !["start", "end"].includes(a.pinned) && b.pinned === "end"
+            : a.pinned === undefined && b.pinned === "end"
               ? -1
               : 0,
   );
@@ -466,6 +475,9 @@ function getColumnPositions(
 
     for (let i = 0; i < def.ancestors.length; i++) {
       const ancestor = def.ancestors[i];
+      if (!ancestor) {
+        continue;
+      }
       const lineage = def.ancestors.slice(0, i);
       const meta = positions.get(ancestor);
       if (!meta) {
@@ -575,9 +587,12 @@ export function getColumnStartBoundary(
   return totalColumnWidths + colIdx * columnGap;
 }
 
-function validateProps(props) {}
+function validateProps<TTemporaryGeneric>(props: TTemporaryGeneric) {}
 function noop() {}
-function invokeDefaultHanlder({ defaultHandler }) {
+interface DefaultHandlerArgs {
+  defaultHandler: () => void;
+}
+function invokeDefaultHanlder({ defaultHandler }: DefaultHandlerArgs) {
   return defaultHandler();
 }
 

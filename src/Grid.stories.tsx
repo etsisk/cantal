@@ -1,15 +1,23 @@
-import { type ChangeEvent, type PointerEvent, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type CSSProperties,
+  type SyntheticEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   type ColumnDef,
   type ColumnDefWithDefaults,
   type DataRow,
   getLeafColumns,
   Grid,
+  type NonEmptyArray,
   type Point,
 } from "./Grid";
 import { type Cell, range, type Range } from "./Body";
-import type { FilterProps } from "./Filter";
+import type { FiltererProps } from "./Filter";
 import { colDefs, data, groupedColumnDefs } from "./stories";
+import type { SortState } from "./Sorter";
 
 export default {
   meta: {
@@ -100,7 +108,7 @@ export function Sorting() {
       { label: "unsorted", symbol: "↑↓", iterable: false },
       { label: "ascending", symbol: "↑" },
       { label: "descending", symbol: "↓" },
-    ],
+    ] satisfies NonEmptyArray<SortState>,
     width: 180,
   }));
 
@@ -114,8 +122,8 @@ export function Sorting() {
           continue;
         }
 
-        const rowA = a[field];
-        const rowB = b[field];
+        const rowA = a[field] as string;
+        const rowB = b[field] as string;
 
         let result = rowA == rowB ? 0 : rowA > rowB ? 1 : -1;
         result *= value === "ascending" ? 1 : -1;
@@ -136,12 +144,14 @@ export function Sorting() {
         columnSorts={sorts}
         data={sortingFunction(data, sorts)}
         handleSort={(columnSort, e) => {
-          if (e.shiftKey || e.metaKey) {
-            // multi column sort
-            setSorts({ ...sorts, ...columnSort });
-          } else {
-            // single column sort
-            setSorts(columnSort);
+          if (columnSort !== undefined) {
+            if (e.shiftKey || e.metaKey) {
+              // multi column sort
+              setSorts({ ...sorts, ...columnSort });
+            } else {
+              // single column sort
+              setSorts(columnSort);
+            }
           }
         }}
       />
@@ -149,8 +159,9 @@ export function Sorting() {
   );
 }
 
-interface SelectProps extends FilterProps {
+interface SelectProps extends FiltererProps {
   options: { label: string; value: string }[];
+  styles?: CSSProperties;
 }
 
 function SelectFilterer({ field, handleFilter, options, styles }: SelectProps) {
@@ -180,7 +191,7 @@ function SelectFilterer({ field, handleFilter, options, styles }: SelectProps) {
   );
 }
 
-function CitySelecter(props) {
+function CitySelect(props: FiltererProps) {
   const uniqueArr = Array.from(new Set(data.map((row) => row.city)));
   const options = [
     { label: "All", value: "" },
@@ -196,7 +207,7 @@ export function Filtering() {
       filterable: true,
     }))
     .map((def) =>
-      def.field === "city" ? { ...def, filterer: CitySelecter } : def,
+      def.field === "city" ? { ...def, filterer: CitySelect } : def,
     );
 
   function filter(
@@ -285,7 +296,7 @@ export function GroupedColumns() {
 export function PinnedColumns() {
   const ref = useRef<HTMLFormElement>(null);
   const [selected, setSelected] = useState("");
-  const [pinned, setPinned] = useState({});
+  const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const defs = groupedColumnDefs.slice(0, 5).map((gc, i) =>
     gc.subcolumns?.length
       ? {
@@ -387,8 +398,8 @@ export function CellFocus() {
       focusedCell={focusedCell}
       handleFocusedCellChange={(
         cell: Cell,
-        e: PointerEvent<HTMLDivElement>,
-        point: Point,
+        e: SyntheticEvent,
+        point: Point | undefined,
       ) => {
         if (cell) {
           setFocusedCell(cell);
@@ -459,11 +470,7 @@ export function CellSelection() {
         columnDefs={colDefs}
         data={data}
         focusedCell={focusedCell}
-        handleFocusedCellChange={(
-          cell: Cell,
-          e: PointerEvent<HTMLDivElement>,
-          point: Point,
-        ) => {
+        handleFocusedCellChange={(cell: Cell) => {
           if (cell) {
             setFocusedCell(cell);
             if (selectionMode === "app-managed") {
@@ -472,7 +479,7 @@ export function CellSelection() {
             }
           }
         }}
-        handleSelection={(selectedRanges: Range[], endPoint: Point) => {
+        handleSelection={(selectedRanges: Range[]) => {
           setSelectedRanges(selectedRanges);
         }}
         selectedRanges={selectedRanges}
@@ -491,19 +498,166 @@ export function CellCopy() {
       columnDefs={colDefs}
       data={data}
       focusedCell={focusedCell}
-      handleFocusedCellChange={(
-        cell: Cell,
-        e: PointerEvent<HTMLDivElement>,
-        point: Point,
-      ) => {
+      handleFocusedCellChange={(cell: Cell) => {
         if (cell) {
           setFocusedCell(cell);
         }
       }}
-      handleSelection={(selectedRanges: Range[], endPoint: Point) => {
+      handleSelection={(selectedRanges: Range[]) => {
         setSelectedRanges(selectedRanges);
       }}
       selectedRanges={selectedRanges}
     />
+  );
+}
+
+export function ProgrammaticControls() {
+  const [filters, setFilters] = useState<{ [key: string]: string }>({});
+  const [columnFilter, setColumnFilter] = useState<string>("");
+  const [sorts, setSorts] = useState({});
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
+  const defs = colDefs
+    .filter(
+      (def) =>
+        columnFilter === "" ||
+        def.title?.toLowerCase().includes(columnFilter.toLowerCase()),
+    )
+    .map((def) => ({
+      ...def,
+      filterable: true,
+      sortable: true,
+    }));
+
+  function filter(
+    data: { [key: string]: unknown }[],
+    filters: { [key: string]: string },
+  ) {
+    return data.filter((row) => {
+      for (let [field, filterValue] of Object.entries(filters)) {
+        if (filterValue.length === 0) {
+          continue;
+        }
+        const value = row[field];
+        if (value === undefined || value === null) {
+          return false;
+        }
+        if (!String(value).toLowerCase().includes(filterValue.toLowerCase())) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  function sortingFunction(
+    data: DataRow[],
+    columnSorts: { [key: string]: string },
+  ) {
+    return data.toSorted((a: DataRow, b: DataRow) => {
+      for (let [field, value] of Object.entries(columnSorts)) {
+        if (value === "unsorted") {
+          continue;
+        }
+
+        const rowA = a[field] as string;
+        const rowB = b[field] as string;
+
+        let result = rowA == rowB ? 0 : rowA > rowB ? 1 : -1;
+        result *= value === "ascending" ? 1 : -1;
+
+        if (result !== 0) {
+          return result;
+        }
+      }
+
+      return 0;
+    });
+  }
+
+  const leafColumns = getLeafColumns(defs);
+  return (
+    <div>
+      <h2 style={{ marginBlockEnd: "5px" }}>Sorting</h2>
+      <button onClick={() => setSorts({ city: "ascending" })}>
+        Sort by Borough
+      </button>
+      <button
+        onClick={() => setSorts({ city: "ascending", address: "ascending" })}
+      >
+        Sort by Borough and Address
+      </button>
+      <button onClick={() => setSorts({})}>Reset sort</button>
+      <h2 style={{ marginBlockEnd: "5px" }}>Filtering</h2>
+      <button onClick={() => setFilters({ city: "Staten Island" })}>
+        Show properties only from Staten Island
+      </button>
+      <button onClick={() => setFilters({})}>Clear all filters</button>
+      <input
+        onChange={(e) => setColumnFilter(e.target.value)}
+        placeholder="Filter columns..."
+        type="text"
+        value={columnFilter}
+      />
+      <h2 style={{ marginBlockEnd: "5px" }}>Focusing</h2>
+      <button onClick={() => setFocusedCell({ columnIndex: 1, rowIndex: 1 })}>
+        Focus the second row in the second column
+      </button>
+      <button onClick={() => setFocusedCell(null)}>Clear cell focus</button>
+      <h2 style={{ marginBlockEnd: "5px" }}>Selection</h2>
+      <button
+        onClick={() => {
+          setSelectedRanges([range(1, 0, 1, leafColumns.length - 1)]);
+        }}
+      >
+        Select 2nd row
+      </button>
+      <button
+        onClick={() => {
+          setSelectedRanges([
+            range(1, 0, 1, leafColumns.length - 1),
+            range(3, 0, 3, leafColumns.length - 1),
+          ]);
+        }}
+      >
+        Select 2nd and 4th rows
+      </button>
+      <button
+        onClick={() => {
+          setSelectedRanges([range(0, 0), range(1, 1), range(2, 2)]);
+        }}
+      >
+        Select 3 separate cells
+      </button>
+      <button onClick={() => setSelectedRanges([])}>
+        Reset cell selection
+      </button>
+      <Grid
+        columnDefs={defs}
+        columnSorts={sorts}
+        data={sortingFunction(filter(data, filters), sorts)}
+        filters={filters}
+        focusedCell={focusedCell}
+        handleFilter={(field: string, value: string) =>
+          setFilters((prev) => ({ ...prev, [field]: value }))
+        }
+        handleFocusedCellChange={(cell: Cell) => {
+          setFocusedCell(cell);
+        }}
+        handleSelection={(selectedRanges: Range[]) => {
+          setSelectedRanges(selectedRanges);
+        }}
+        handleSort={(columnSort, e) => {
+          if (columnSort !== undefined) {
+            if (e.shiftKey || e.metaKey) {
+              setSorts({ ...sorts, ...columnSort });
+            } else {
+              setSorts(columnSort);
+            }
+          }
+        }}
+        selectedRanges={selectedRanges}
+      />
+    </div>
   );
 }

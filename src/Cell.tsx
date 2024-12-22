@@ -7,7 +7,7 @@ interface CellProps {
   columnDef: ColumnDefWithDefaults | LeafColumn;
   columnIndex: number;
   isFocused: boolean;
-  position: Position;
+  position: Position | undefined;
   rowIndex: number;
   selected: boolean;
 }
@@ -22,6 +22,10 @@ export function Cell({
   rowIndex,
   selected = false,
 }: CellProps) {
+  if (position === undefined) {
+    console.warn("Column definition not found.");
+    return null;
+  }
   return (
     <div
       aria-label={ariaLabel}

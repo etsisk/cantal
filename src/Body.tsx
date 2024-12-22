@@ -45,7 +45,7 @@ interface BodyProps {
   handlePointerDown: (args: HandlePointerDownArgs) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
-    endPoint: Point,
+    endPoint: Point | null,
     e:
       | PointerEvent
       | ReactPointerEvent<HTMLDivElement>
@@ -97,7 +97,7 @@ export function Body({
   );
 
   useEffect(() => {
-    if (viewportRef.current) {
+    if (viewportRef.current && headerViewportRef.current) {
       viewportRef.current.style.height = `${
         containerHeight - headerViewportRef.current.offsetHeight
       }px`;
@@ -136,7 +136,7 @@ export function Body({
       rowHeight * focusedCell.rowIndex + focusedCell.rowIndex * rowGap;
     const cellBlockEnd = cellBlockStart + rowHeight;
     // TODO: Consider extracting scroll logic into reusable function
-    if (cellInlineStart < viewportRect.left) {
+    if (viewportRect.left !== null && cellInlineStart < viewportRect.left) {
       viewportRef.current.scrollLeft = cellInlineStart;
     } else if (cellInlineEnd > viewportRect.right) {
       viewportRef.current.scrollLeft = cellInlineEnd - viewportRect.width;
@@ -221,13 +221,40 @@ export function Body({
           columnGap,
         )
       : scrollLeft + offsetWidth;
+    if (startBoundary !== null) {
+      const bRect = viewport.getBoundingClientRect();
+      console.log({
+        hand: {
+          bottom: scrollTop + offsetHeight,
+          height: offsetHeight,
+          left: startBoundary,
+          right: endBoundary,
+          top: scrollTop,
+          width: endBoundary - startBoundary,
+        },
+        dom: {
+          ...bRect,
+          left: scrollLeft,
+          right: bRect.width + scrollLeft,
+        },
+      });
+      // TODO: Consider using getBoundingClientRect as a fallback
+      return {
+        bottom: scrollTop + offsetHeight,
+        height: offsetHeight,
+        left: startBoundary,
+        right: endBoundary,
+        top: scrollTop,
+        width: endBoundary - startBoundary,
+      };
+    }
     return {
       bottom: scrollTop + offsetHeight,
       height: offsetHeight,
-      left: startBoundary,
+      left: startBoundary, // ?
       right: endBoundary,
       top: scrollTop,
-      width: endBoundary - startBoundary,
+      width: endBoundary - startBoundary, // ?
     };
   }
 
@@ -257,10 +284,16 @@ export function Body({
       return;
     }
 
+    const columnDef = leafColumns[focusedCell.columnIndex];
+
+    if (!columnDef) {
+      return;
+    }
+
     handleKeyDown({
       e,
       cell: focusedCell,
-      columnDef: leafColumns[focusedCell.columnIndex],
+      columnDef,
       defaultHandler: () => defaultHandleKeyDown(e),
     });
     e.stopPropagation();
@@ -319,6 +352,9 @@ export function Body({
     dir: Direction,
     wrap: boolean,
   ): boolean {
+    if (!focusedCell) {
+      return false;
+    }
     if (dir === "up") {
       if (focusedCell.rowIndex === 0) {
         return false;
@@ -403,7 +439,13 @@ export function Body({
     return true;
   }
 
-  function setSelectionRangeToFocusedCell(focusedCell: Cell, e) {
+  function setSelectionRangeToFocusedCell(
+    focusedCell: Cell,
+    e:
+      | PointerEvent
+      | ReactPointerEvent<HTMLDivElement>
+      | KeyboardEvent<HTMLDivElement>,
+  ) {
     if (selectionFollowsFocus && handleSelection) {
       const point = getPointFromEvent(e, canvasRef.current);
 
@@ -426,7 +468,14 @@ export function Body({
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     const cell = getCellFromEvent(e);
     const point = getPointFromEvent(e, canvasRef.current);
-    if (!cell) {
+
+    if (!cell || !point) {
+      return;
+    }
+
+    const columnDef = leafColumns[cell.columnIndex];
+
+    if (!columnDef) {
       return;
     }
 
@@ -434,7 +483,7 @@ export function Body({
       e,
       cell,
       point,
-      columnDef: leafColumns[cell.columnIndex],
+      columnDef,
       defaultHandler: () => defaultHandlePointerDown(e, cell, point),
     });
     // Allow DIV elements to take focus
@@ -500,16 +549,16 @@ export function Body({
     }
   }
 
-  const viewportStyles = {
+  const viewportStyles: CSSProperties = {
     overflow: "auto",
     width: "inherit",
   };
 
-  const canvasStyles = {
+  const canvasStyles: CSSProperties = {
     width: canvasWidth,
   };
 
-  const pinnedStyles = {
+  const pinnedStyles: CSSProperties = {
     ...styles,
     backgroundColor: "var(--background-color)",
     display: "grid",
@@ -519,12 +568,12 @@ export function Body({
     position: "sticky",
   };
 
-  const pinnedStartStyles = {
+  const pinnedStartStyles: CSSProperties = {
     ...pinnedStyles,
     gridColumn: `1 / ${pinnedStartLeafColumns.length + 1}`,
   };
 
-  const unpinnedStyles = {
+  const unpinnedStyles: CSSProperties = {
     ...styles,
     display: "grid",
     gridAutoRows: rowHeight,
@@ -534,13 +583,16 @@ export function Body({
     gridTemplateColumns: "subgrid",
   };
 
-  const pinnedEndStyles = {
+  const pinnedEndStyles: CSSProperties = {
     ...pinnedStyles,
     gridColumn: `${leafColumns.length - pinnedEndLeafColumns.length + 1} / ${
       leafColumns.length + 1
     }`,
   };
 
+  const leafColumn = focusedCell
+    ? leafColumns[focusedCell.columnIndex]
+    : undefined;
   return (
     <div
       className="cantal-body-viewport"
@@ -558,23 +610,20 @@ export function Body({
         ref={canvasRef}
         style={canvasStyles}
       >
-        {focusedCell && leafColumns[focusedCell.columnIndex] && (
+        {focusedCell && leafColumn && (
           <div
             aria-label={
-              leafColumns[focusedCell.columnIndex].ariaCellLabel instanceof
-              Function
-                ? leafColumns[focusedCell.columnIndex].ariaCellLabel({
-                    def: leafColumns[focusedCell.columnIndex],
+              leafColumn.ariaCellLabel instanceof Function
+                ? leafColumn.ariaCellLabel({
+                    def: leafColumn,
                     columnIndex: focusedCell.columnIndex,
                     data: data[focusedCell.rowIndex],
                     rowIndex: focusedCell.rowIndex,
                     value: data[focusedCell.rowIndex]
-                      ? data[focusedCell.rowIndex][
-                          leafColumns[focusedCell.columnIndex].field
-                        ]
+                      ? data[focusedCell.rowIndex][leafColumn.field]
                       : null,
                   })
-                : leafColumns[focusedCell.columnIndex].ariaCellLabel
+                : leafColumn.ariaCellLabel
             }
             aria-live="polite"
             className="cantal-focused-cell"
@@ -591,13 +640,10 @@ export function Body({
             tabIndex={-1}
           >
             {data[focusedCell.rowIndex]
-              ? leafColumns[focusedCell.columnIndex].valueRenderer({
-                  columnDef: leafColumns[focusedCell.columnIndex],
+              ? leafColumn.valueRenderer({
+                  columnDef: leafColumn,
                   data: data[focusedCell.rowIndex],
-                  value:
-                    data[focusedCell.rowIndex][
-                      leafColumns[focusedCell.columnIndex].field
-                    ],
+                  value: data[focusedCell.rowIndex][leafColumn.field],
                 })
               : null}
           </div>
@@ -830,9 +876,15 @@ function getCellFromEvent(event: SyntheticEvent | PointerEvent) {
 }
 
 function getPointFromEvent(
-  event: PointerEvent | ReactPointerEvent<HTMLDivElement>,
-  element: HTMLDivElement,
-): Point {
+  event:
+    | PointerEvent
+    | ReactPointerEvent<HTMLDivElement>
+    | KeyboardEvent<HTMLDivElement>,
+  element: HTMLDivElement | null,
+): Point | null {
+  if (element === null || isKeyboardEvent(event)) {
+    return null;
+  }
   return {
     x: event.clientX - element.getBoundingClientRect().left,
     y: event.clientY - element.getBoundingClientRect().top,
@@ -843,9 +895,7 @@ function rangesContainCell(ranges: IndexedArray<Range>, cell: Cell): boolean {
   if (!cell) {
     return false;
   }
-  for (let i in ranges) {
-    const range = ranges[i];
-
+  for (let range of ranges) {
     if (range.contains(cell.rowIndex, cell.columnIndex)) {
       return true;
     }
@@ -945,10 +995,13 @@ export function range(
 function getExpandedSelectionRangeOnKey(
   key: string,
   focusedCell: Cell,
-  selectedRange: Range,
+  selectedRange: Range | undefined,
   data: Record<string, unknown>[],
   leafColumns: LeafColumn[],
 ): Range {
+  if (selectedRange === undefined) {
+    return range(focusedCell.rowIndex, focusedCell.columnIndex);
+  }
   const r = range(
     Math.min(
       data.length - 1,
@@ -1038,6 +1091,10 @@ function getCopyMatrix(
 
       const columnDef = leafColumns[column];
 
+      if (!columnDef || !matrix[rowIndex]) {
+        continue;
+      }
+
       // TODO: Verify valueGetter design
       // if (columnDef?.valueGetter) {
       // matrix[rowIndex][columnIndex] = columnDef.valueGetter({
@@ -1071,5 +1128,17 @@ function getCopyMatrix(
 function getMergedRangeFromRanges(ranges: IndexedArray<Range>): Range {
   return ranges
     .slice(1)
-    .reduce((merged: Range, range) => merged.merge(range), ranges[0]);
+    .reduce(
+      (merged: Range, range: Range) => merged.merge(range),
+      ranges[0] as Range,
+    );
+}
+
+function isKeyboardEvent(
+  e:
+    | KeyboardEvent<HTMLDivElement>
+    | PointerEvent
+    | ReactPointerEvent<HTMLDivElement>,
+): e is KeyboardEvent<HTMLDivElement> {
+  return (e as KeyboardEvent<HTMLDivElement>).key !== undefined;
 }

@@ -13,5 +13,6 @@ export default {
     "grid--cell-focus",
     "grid--cell-selection",
     "grid--cell-copy",
+    "grid--programmatic-controls",
   ],
 };
