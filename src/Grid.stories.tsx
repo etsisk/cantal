@@ -16,7 +16,7 @@ import {
 } from "./Grid";
 import { type Cell, range, type Range } from "./Body";
 import type { FiltererProps } from "./Filter";
-import { colDefs, data, groupedColumnDefs } from "./stories";
+import { colDefs, data, generateData, groupedColumnDefs } from "./stories";
 import type { SortState } from "./Sorter";
 
 export default {
@@ -40,10 +40,26 @@ export function Sizing() {
   const [isBlock, setIsBlock] = useState<boolean>(false);
   const containerStyles = isBlock
     ? { display: "block", height: "240px" }
-    : { height: "200px", width: "500px" };
-  // const defs = colDefs.map((def: ColumnDef) => ({ ...def, width: '1fr' }));
+    : { width: "500px", height: "200px" };
   return (
     <div>
+      <h2>TODO</h2>
+      <ul>
+        <li>
+          Try to set the height of the body on initial render
+          <ul>
+            <li>
+              If we get the style height from the container, can we easily
+              calculate the height of the header viewport with JS? with CSS ?
+            </li>
+            <li>
+              Because the initial height is the same as height from the resize
+              observer, the grid component, and thus the body component aren't
+              re-rendered and so it never sees the headerViewport
+            </li>
+          </ul>
+        </li>
+      </ul>
       <p>
         <button onClick={() => setIsBlock(!isBlock)}>Toggle sizing</button>
       </p>
@@ -659,5 +675,90 @@ export function ProgrammaticControls() {
         selectedRanges={selectedRanges}
       />
     </div>
+  );
+}
+
+export function VirtualRows() {
+  const { colDefs, data } = generateData(100_000, 10);
+  const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
+  const [selected, setSelected] = useState("");
+  return (
+    <>
+      <form>
+        <label htmlFor="select">Choose a column to pin:</label>
+        <select
+          id="select"
+          onChange={(e) => setSelected(e.target.value)}
+          style={{ display: "block" }}
+          value={selected}
+        >
+          <option value="" />
+          {getLeafColumns(colDefs).map((def) => (
+            <option key={def.field} value={def.field}>
+              {def.title}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "start" }));
+            setSelected("");
+          }}
+        >
+          Left
+        </button>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "end" }));
+            setSelected("");
+          }}
+        >
+          Right
+        </button>
+        <button
+          disabled={
+            !Object.keys(pinned).includes(selected) ||
+            Object.keys(pinned).length === 0
+          }
+          formAction={() => {
+            setPinned((prev) =>
+              Object.keys(prev)
+                .filter((key) => key !== selected)
+                .reduce(
+                  (obj, key) => ({
+                    ...obj,
+                    [key]: prev[key as keyof typeof prev],
+                  }),
+                  {},
+                ),
+            );
+            setSelected("");
+          }}
+        >
+          Unpin
+        </button>
+      </form>
+      <br />
+      <h2>TODO</h2>
+      <ul>
+        <li>Find solution for grid-body hack (when columns are pinned)</li>
+      </ul>
+      <Grid
+        columnDefs={colDefs.map((def) => {
+          return Object.keys(pinned).includes(def.field)
+            ? { ...def, pinned: pinned[def.field] }
+            : def;
+        })}
+        data={data}
+        styles={{
+          container: {
+            height: 300,
+          },
+        }}
+        virtual="rows"
+      />
+    </>
   );
 }

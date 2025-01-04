@@ -5,7 +5,6 @@ import {
   type RefObject,
   type SyntheticEvent,
   type UIEvent,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -53,6 +52,7 @@ interface BodyProps {
   ) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
+  overscanRows: number;
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   rowGap: number;
   rowHeight?: number;
@@ -60,6 +60,7 @@ interface BodyProps {
   selectionFollowsFocus?: boolean;
   showSelectionBox?: boolean;
   styles: CSSProperties;
+  virtual: "columns" | "rows" | boolean;
 }
 
 export function Body({
@@ -74,6 +75,7 @@ export function Body({
   handleSelection,
   headerViewportRef,
   leafColumns,
+  overscanRows,
   positions,
   rowGap,
   rowHeight = 27,
@@ -81,11 +83,18 @@ export function Body({
   selectionFollowsFocus = false,
   showSelectionBox,
   styles,
+  virtual,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   // QUESTION: Should `focusedCellRef` be defined here or on Grid.tsx?
   const focusedCellRef = useRef<HTMLDivElement>(null);
+  const [visibleRows, setVisibleRows] = useState<number[]>(() => {
+    if (virtual === "rows" || virtual === true) {
+      return spread(0, Math.floor(window.innerHeight / rowHeight));
+    }
+    return spread(0, data.length);
+  });
   const [startDragCell, setStartDragCell] = useState<Cell | undefined>(
     undefined,
   );
@@ -96,11 +105,10 @@ export function Body({
     undefined,
   );
 
+  // NOTE: there are few cases where we could skip the useEffect and calculate the viewport height based on styles + math
   useEffect(() => {
     if (viewportRef.current && headerViewportRef.current) {
-      viewportRef.current.style.height = `${
-        containerHeight - headerViewportRef.current.offsetHeight
-      }px`;
+      viewportRef.current.style.height = `${containerHeight - headerViewportRef.current.offsetHeight}px`;
     }
   }, [containerHeight]);
 
@@ -149,6 +157,7 @@ export function Body({
     }
   }, [columnGap, focusedCell, leafColumns]);
 
+  // QUESTION: use useRef instead?
   useEffect(() => {
     function pointerMove(e: PointerEvent): void {
       const cell = getCellFromEvent(e);
@@ -266,6 +275,25 @@ export function Body({
   const unpinnedLeafColumns = leafColumns.filter(
     (lc) => lc.pinned !== "start" && lc.pinned !== "end",
   );
+
+  function getVisibleRowsRange() {
+    if (viewportRef.current && (virtual === true || virtual === "rows")) {
+      const { scrollTop, offsetHeight } = viewportRef.current;
+      const rowHeightWithGap = rowHeight + rowGap;
+      const firstVisibleRow = Math.max(
+        Math.floor((scrollTop + rowGap) / rowHeightWithGap) - overscanRows,
+        0,
+      );
+      const lastVisibleRow =
+        Math.min(
+          Math.floor((scrollTop + offsetHeight) / rowHeightWithGap) +
+            overscanRows,
+          data.length - 1,
+        ) + 1;
+      return spread(firstVisibleRow, lastVisibleRow);
+    }
+    return spread(0, data.length);
+  }
 
   function handleCopy() {
     const str = getCopyMatrix(data, leafColumns, selectedRanges)
@@ -547,6 +575,9 @@ export function Body({
     if (headerViewportRef.current) {
       headerViewportRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
+    if (viewportRef.current && (virtual === "rows" || virtual === true)) {
+      setVisibleRows(getVisibleRowsRange());
+    }
   }
 
   const viewportStyles: CSSProperties = {
@@ -555,6 +586,10 @@ export function Body({
   };
 
   const canvasStyles: CSSProperties = {
+    height:
+      virtual === "rows" || virtual === true
+        ? (rowHeight + rowGap) * data.length - rowGap
+        : "auto",
     width: canvasWidth,
   };
 
@@ -564,6 +599,7 @@ export function Body({
     display: "grid",
     gridAutoRows: rowHeight,
     gridTemplateColumns: "subgrid",
+    height: "max-content",
     insetInline: 0,
     position: "sticky",
   };
@@ -581,6 +617,12 @@ export function Body({
       leafColumns.length - pinnedEndLeafColumns.length + 1
     }`,
     gridTemplateColumns: "subgrid",
+    // TODO: This is kind of a hack (at least for unpinnedStyles,
+    // need to confirm for pinnedStyles) It would be better if
+    // `grid-body` element took the height of it's children
+    backgroundColor: "var(--background-color)",
+    height: "max-content",
+    // end kind of a hack
   };
 
   const pinnedEndStyles: CSSProperties = {
@@ -593,6 +635,7 @@ export function Body({
   const leafColumn = focusedCell
     ? leafColumns[focusedCell.columnIndex]
     : undefined;
+
   return (
     <div
       className="cantal-body-viewport"
@@ -667,6 +710,9 @@ export function Body({
           style={{
             display: "grid",
             gridAutoRows: rowHeight,
+            insetBlockStart: visibleRows[0]
+              ? visibleRows[0] * (rowHeight + rowGap)
+              : 0,
             ...styles,
           }}
         >
@@ -678,7 +724,8 @@ export function Body({
                   className="cantal-body-pinned-start"
                   style={pinnedStartStyles}
                 >
-                  {data.map((row, rowIndex) => {
+                  {visibleRows.map((rowIndex) => {
+                    const row = data[rowIndex];
                     return pinnedStartLeafColumns.map(
                       (columnDef, columnIndex) => {
                         const isFocused =
@@ -718,7 +765,8 @@ export function Body({
               )}
               <div className="cantal-body-unpinned" style={unpinnedStyles}>
                 {unpinnedLeafColumns.length > 0 &&
-                  data.map((row, rowIndex) => {
+                  visibleRows.map((rowIndex) => {
+                    const row = data[rowIndex];
                     return unpinnedLeafColumns.map((columnDef, columnIndex) => {
                       // TODO: Can we avoid 'colIndex' calculation?
                       const colIndex =
@@ -758,7 +806,8 @@ export function Body({
               </div>
               {pinnedEndLeafColumns.length > 0 && (
                 <div className="cantal-body-pinned-end" style={pinnedEndStyles}>
-                  {data.map((row, rowIndex) => {
+                  {visibleRows.map((rowIndex) => {
+                    const row = data[rowIndex];
                     return pinnedEndLeafColumns.map(
                       (columnDef, columnIndex) => {
                         // TODO: Can we avoid 'colIndex' calculation?
@@ -804,7 +853,8 @@ export function Body({
             </>
           ) : (
             <>
-              {data.map((row, rowIndex) => {
+              {visibleRows.map((rowIndex) => {
+                const row = data[rowIndex];
                 return unpinnedLeafColumns.map((columnDef, columnIndex) => {
                   const isFocused =
                     focusedCell?.rowIndex === rowIndex &&
@@ -1141,4 +1191,9 @@ function isKeyboardEvent(
     | ReactPointerEvent<HTMLDivElement>,
 ): e is KeyboardEvent<HTMLDivElement> {
   return (e as KeyboardEvent<HTMLDivElement>).key !== undefined;
+}
+
+// TODO: Move to a utils file
+function spread(start: number, end: number) {
+  return Array.from({ length: end - start }, (v, i) => start + i);
 }
