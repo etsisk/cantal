@@ -43,23 +43,6 @@ export function Sizing() {
     : { width: "500px", height: "200px" };
   return (
     <div>
-      <h2>TODO</h2>
-      <ul>
-        <li>
-          Try to set the height of the body on initial render
-          <ul>
-            <li>
-              If we get the style height from the container, can we easily
-              calculate the height of the header viewport with JS? with CSS ?
-            </li>
-            <li>
-              Because the initial height is the same as height from the resize
-              observer, the grid component, and thus the body component aren't
-              re-rendered and so it never sees the headerViewport
-            </li>
-          </ul>
-        </li>
-      </ul>
       <p>
         <button onClick={() => setIsBlock(!isBlock)}>Toggle sizing</button>
       </p>
