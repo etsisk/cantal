@@ -7,7 +7,6 @@ import {
   type Ref,
   type RefObject,
   type SyntheticEvent,
-  useCallback,
   useRef,
   useState,
 } from "react";
@@ -162,6 +161,7 @@ interface GridProps {
     canvasWidth: string,
   ) => ReactNode;
   id?: string;
+  overscanRows?: number;
   rowHeight?: number;
   selectedRanges?: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
@@ -169,6 +169,7 @@ interface GridProps {
   styles?: {
     container: CSSProperties;
   };
+  virtual?: "columns" | "rows" | boolean;
 }
 
 export function Grid({
@@ -192,6 +193,7 @@ export function Grid({
       handleSelection={handleSelection}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
+      overscanRows={overscanRows}
       positions={positions}
       rowGap={typeof gap === "number" ? gap : gap.rowGap}
       rowHeight={rowHeight}
@@ -199,6 +201,7 @@ export function Grid({
       selectionFollowsFocus={selectionFollowsFocus}
       showSelectionBox={showSelectionBox}
       styles={styles}
+      virtual={virtual}
     />
   ),
   columnDefs,
@@ -236,25 +239,30 @@ export function Grid({
       styles={styles}
     />
   ),
+  overscanRows = 3,
   rowHeight,
   selectedRanges = [],
   selectionFollowsFocus,
   showSelectionBox,
   styles,
+  virtual = false,
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number>(0);
-  const sizeRef = useCallback((node: HTMLElement) => {
+  const sizeRef = (node: HTMLDivElement) => {
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) {
+        setHeight(entry.contentRect.height);
+      }
+    });
     if (node !== null) {
-      const resizeObserver = new ResizeObserver((entries) => {
-        if (entries[0]) {
-          setHeight(entries[0].contentRect.height);
-        }
-      });
-      resizeObserver.observe(node);
+      ro.observe(node);
     }
-  }, []);
+    return () => {
+      ro.disconnect();
+    };
+  };
   const { columnGap, rowGap } =
     typeof gap === "number" ? { columnGap: gap, rowGap: gap } : gap;
   const colDefs = applyColumnDefDefaults(columnDefs, columnDefDefaults);
@@ -296,6 +304,7 @@ export function Grid({
         colDefs,
         orderedLeafColumns,
         positions,
+        // TODO: headerRowHeight prop
         { ...computedStyles, gridAutoRows: `minmax(${27}px, auto)` },
         headerViewportRef,
         canvasWidth,
