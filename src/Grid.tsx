@@ -1,11 +1,13 @@
 import {
   type CSSProperties,
+  type Dispatch,
   type FC,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
   type RefObject,
+  type SetStateAction,
   type SyntheticEvent,
   useRef,
   useState,
@@ -116,10 +118,16 @@ interface GridProps {
   body?: (
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
+    visibleStartColumn: number,
+    visibleEndColumn: number,
     styles: CSSProperties,
     height: number,
     canvasWidth: string,
     headerViewportRef: RefObject<HTMLDivElement | null>,
+    setState: {
+      setVisibleEndColumn: Dispatch<SetStateAction<number>>;
+      setVisibleStartColumn: Dispatch<SetStateAction<number>>;
+    },
   ) => ReactNode;
   columnDefs: ColumnDef[];
   columnSorts?: { [key: string]: string };
@@ -156,11 +164,14 @@ interface GridProps {
     colDefs: ColumnDefWithDefaults[],
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
+    visibleStartColumn: number,
+    visibleEndColumn: number,
     styles: CSSProperties,
     ref: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
   ) => ReactNode;
   id?: string;
+  overscanColumns?: number;
   overscanRows?: number;
   rowHeight?: number;
   selectedRanges?: IndexedArray<Range>;
@@ -176,10 +187,16 @@ export function Grid({
   body = (
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
+    visibleStartColumn: number,
+    visibleEndColumn: number,
     styles: CSSProperties,
     height: number,
     canvasWidth: string,
     headerViewportRef: RefObject<HTMLDivElement | null>,
+    setState: {
+      setVisibleEndColumn: Dispatch<SetStateAction<number>>;
+      setVisibleStartColumn: Dispatch<SetStateAction<number>>;
+    },
   ) => (
     <Body
       canvasWidth={canvasWidth}
@@ -193,15 +210,19 @@ export function Grid({
       handleSelection={handleSelection}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
+      overscanColumns={overscanColumns}
       overscanRows={overscanRows}
       positions={positions}
       rowGap={typeof gap === "number" ? gap : gap.rowGap}
       rowHeight={rowHeight}
       selectedRanges={selectedRanges}
       selectionFollowsFocus={selectionFollowsFocus}
+      setState={setState}
       showSelectionBox={showSelectionBox}
       styles={styles}
       virtual={virtual}
+      visibleColumnEnd={visibleEndColumn}
+      visibleColumnStart={visibleStartColumn}
     />
   ),
   columnDefs,
@@ -221,7 +242,9 @@ export function Grid({
     colDefs: ColumnDefWithDefaults[],
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
-    styles,
+    visibleStartColumn: number,
+    visibleEndColumn: number,
+    styles: CSSProperties,
     ref: RefObject<HTMLDivElement | null>,
     canvasWidth: string,
   ) => (
@@ -237,8 +260,11 @@ export function Grid({
       ref={ref}
       sorts={columnSorts}
       styles={styles}
+      visibleColumnEnd={visibleEndColumn}
+      visibleColumnStart={visibleStartColumn}
     />
   ),
+  overscanColumns = 3,
   overscanRows = 3,
   rowHeight,
   selectedRanges = [],
@@ -249,11 +275,12 @@ export function Grid({
 }: GridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerViewportRef = useRef<HTMLDivElement>(null);
+  const [visibleStartColumn, setVisibleStartColumn] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
   const sizeRef = (node: HTMLDivElement) => {
     const ro = new ResizeObserver(([entry]) => {
       if (entry) {
-        setHeight(entry.contentRect.height);
+        setHeight(Math.ceil(entry.contentRect.height));
       }
     });
     if (node !== null) {
@@ -276,9 +303,20 @@ export function Grid({
     });
   }
   const leafColumns = getLeafColumns(colDefs);
+  const [visibleEndColumn, setVisibleEndColumn] = useState<number>(() => {
+    if (virtual === true || virtual === "columns") {
+      return Math.min(
+        leafColumns.length,
+        window.innerWidth / DEFAULT_COLUMN_WIDTH,
+      );
+    }
+    return leafColumns.length;
+  });
   const orderedLeafColumns = pinColumns(leafColumns);
   const maxDepth = getColumnDepth(leafColumns);
   const positions = getColumnPositions(orderedLeafColumns, maxDepth);
+  // TODO: There's room to optimize call to `getColumnWidths` but we need
+  // to take pinned columns into account
   const gridTemplateColumns = getColumnWidths(orderedLeafColumns);
   const canvasWidth = getGridCanvasWidth(orderedLeafColumns, columnGap);
   const computedStyles = {
@@ -304,6 +342,8 @@ export function Grid({
         colDefs,
         orderedLeafColumns,
         positions,
+        visibleStartColumn,
+        visibleEndColumn,
         // TODO: headerRowHeight prop
         { ...computedStyles, gridAutoRows: `minmax(${27}px, auto)` },
         headerViewportRef,
@@ -312,10 +352,13 @@ export function Grid({
       {body(
         orderedLeafColumns,
         positions,
+        visibleStartColumn,
+        visibleEndColumn,
         computedStyles,
         height,
         canvasWidth,
         headerViewportRef,
+        { setVisibleEndColumn, setVisibleStartColumn },
       )}
     </div>
   );

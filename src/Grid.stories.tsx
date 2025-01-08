@@ -745,3 +745,84 @@ export function VirtualRows() {
     </>
   );
 }
+
+export function VirtualColumns() {
+  const { colDefs, data } = generateData(10, 10_000);
+  const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
+  const [selected, setSelected] = useState("");
+  return (
+    <>
+      <form>
+        <label htmlFor="select">Choose a column to pin:</label>
+        <select
+          id="select"
+          onChange={(e) => setSelected(e.target.value)}
+          style={{ display: "block" }}
+          value={selected}
+        >
+          <option value="" />
+          {getLeafColumns(colDefs).map((def) => (
+            <option key={def.field} value={def.field}>
+              {def.title}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "start" }));
+            setSelected("");
+          }}
+        >
+          Left
+        </button>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "end" }));
+            setSelected("");
+          }}
+        >
+          Right
+        </button>
+        <button
+          disabled={
+            !Object.keys(pinned).includes(selected) ||
+            Object.keys(pinned).length === 0
+          }
+          formAction={() => {
+            setPinned((prev) =>
+              Object.keys(prev)
+                .filter((key) => key !== selected)
+                .reduce(
+                  (obj, key) => ({
+                    ...obj,
+                    [key]: prev[key as keyof typeof prev],
+                  }),
+                  {},
+                ),
+            );
+            setSelected("");
+          }}
+        >
+          Unpin
+        </button>
+      </form>
+      <br />
+      <Grid
+        columnDefs={colDefs.map((def) => {
+          return Object.keys(pinned).includes(def.field)
+            ? { ...def, pinned: pinned[def.field] }
+            : def;
+        })}
+        data={data}
+        styles={{
+          container: {
+            width: 1000,
+          },
+        }}
+        virtual="columns"
+      />
+    </>
+  );
+}

@@ -15,5 +15,6 @@ export default {
     "grid--cell-copy",
     "grid--programmatic-controls",
     "grid--virtual-rows",
+    "grid--virtual-columns",
   ],
 };

@@ -26,6 +26,8 @@ interface HeaderProps {
   ref: { current: any };
   sorts: { [key: string]: string };
   styles: CSSProperties;
+  visibleColumnEnd: number;
+  visibleColumnStart: number;
 }
 
 export function Header({
@@ -40,6 +42,8 @@ export function Header({
   ref,
   sorts,
   styles,
+  visibleColumnEnd,
+  visibleColumnStart,
 }: HeaderProps) {
   const pinnedStartLeafColumns = leafColumns.filter(
     (def) => def.pinned === "start",
@@ -215,21 +219,24 @@ export function Header({
               )}
               {unpinnedLeafColumns.length > 0 && (
                 <div className="cantal-header-unpinned" style={unpinnedStyles}>
-                  {getFlattenedColumns(unpinnedLeafColumns).map(
-                    (def: LeafColumn | ColumnDefWithDefaults) => (
-                      <HeaderCell
-                        columnDef={def}
-                        filterer={def.filterer}
-                        filters={filters}
-                        handleFilter={handleFilter}
-                        handleResize={handleColumnResize}
-                        handleSort={handleSort}
-                        key={def.field}
-                        position={positions.get(def)}
-                        sorts={sorts}
-                      />
+                  {getFlattenedColumns(
+                    unpinnedLeafColumns.slice(
+                      visibleColumnStart,
+                      visibleColumnEnd + 1,
                     ),
-                  )}
+                  ).map((def: LeafColumn | ColumnDefWithDefaults) => (
+                    <HeaderCell
+                      columnDef={def}
+                      filterer={def.filterer}
+                      filters={filters}
+                      handleFilter={handleFilter}
+                      handleResize={handleColumnResize}
+                      handleSort={handleSort}
+                      key={def.field}
+                      position={positions.get(def)}
+                      sorts={sorts}
+                    />
+                  ))}
                 </div>
               )}
               {pinnedEndLeafColumns.length > 0 && (
@@ -257,21 +264,21 @@ export function Header({
             </>
           ) : (
             <>
-              {getFlattenedColumns(leafColumns).map(
-                (def: LeafColumn | ColumnDefWithDefaults) => (
-                  <HeaderCell
-                    columnDef={def}
-                    filterer={def.filterer}
-                    filters={filters}
-                    handleFilter={handleFilter}
-                    handleResize={handleColumnResize}
-                    handleSort={handleSort}
-                    key={def.field}
-                    position={positions.get(def)}
-                    sorts={sorts}
-                  />
-                ),
-              )}
+              {getFlattenedColumns(
+                leafColumns.slice(visibleColumnStart, visibleColumnEnd + 1),
+              ).map((def: LeafColumn | ColumnDefWithDefaults) => (
+                <HeaderCell
+                  columnDef={def}
+                  filterer={def.filterer}
+                  filters={filters}
+                  handleFilter={handleFilter}
+                  handleResize={handleColumnResize}
+                  handleSort={handleSort}
+                  key={def.field}
+                  position={positions.get(def)}
+                  sorts={sorts}
+                />
+              ))}
             </>
           )}
         </div>

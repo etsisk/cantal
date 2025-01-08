@@ -1,8 +1,10 @@
 import {
   type CSSProperties,
+  type Dispatch,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  type SetStateAction,
   type SyntheticEvent,
   type UIEvent,
   useEffect,
@@ -52,15 +54,22 @@ interface BodyProps {
   ) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
+  overscanColumns: number;
   overscanRows: number;
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   rowGap: number;
   rowHeight?: number;
   selectedRanges: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
+  setState: {
+    setVisibleEndColumn: Dispatch<SetStateAction<number>>;
+    setVisibleStartColumn: Dispatch<SetStateAction<number>>;
+  };
   showSelectionBox?: boolean;
   styles: CSSProperties;
   virtual: "columns" | "rows" | boolean;
+  visibleColumnEnd: number;
+  visibleColumnStart: number;
 }
 
 export function Body({
@@ -75,22 +84,27 @@ export function Body({
   handleSelection,
   headerViewportRef,
   leafColumns,
+  overscanColumns,
   overscanRows,
   positions,
   rowGap,
   rowHeight = 27,
   selectedRanges,
   selectionFollowsFocus = false,
+  setState,
   showSelectionBox,
   styles,
   virtual,
+  visibleColumnEnd,
+  visibleColumnStart,
 }: BodyProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   // QUESTION: Should `focusedCellRef` be defined here or on Grid.tsx?
   const focusedCellRef = useRef<HTMLDivElement>(null);
+  // TODO: Switch to primative value state for visibleRows
   const [visibleRows, setVisibleRows] = useState<number[]>(() => {
-    if (virtual === "rows" || virtual === true) {
+    if (virtual === true || virtual === "rows") {
       return spread(0, Math.floor(window.innerHeight / rowHeight));
     }
     return spread(0, data.length);
@@ -275,6 +289,52 @@ export function Body({
   const unpinnedLeafColumns = leafColumns.filter(
     (lc) => lc.pinned !== "start" && lc.pinned !== "end",
   );
+
+  // TODO: Rename function to better describe output
+  function getVisibleColumnsRange(): [number, number] {
+    if (viewportRef.current && (virtual === true || virtual === "columns")) {
+      const { offsetWidth, scrollLeft } = viewportRef.current;
+      const startBoundary =
+        scrollLeft +
+        pinnedStartLeafColumns.reduce((sum, lc) => sum + lc.width, 0) +
+        Math.max(pinnedStartLeafColumns.length - 1, 0) * columnGap;
+      const endBoundary = Math.max(
+        scrollLeft,
+        scrollLeft +
+          offsetWidth -
+          (pinnedEndLeafColumns.reduce((sum, lc) => sum + lc.width, 0) +
+            Math.max(pinnedEndLeafColumns.length - 1, 0) * columnGap),
+      );
+      const columnEndBoundaries = getColumnEndBoundaries(endBoundary);
+
+      const firstVisibleColumn = Math.max(
+        (columnEndBoundaries.findIndex((b) => b > startBoundary) ?? 0) -
+          overscanColumns,
+        0,
+      );
+      const lastVisibleColumn =
+        Math.min(
+          (columnEndBoundaries.findIndex((b) => b > endBoundary) ?? 0) +
+            overscanColumns,
+          leafColumns.length - 1,
+        ) + 1;
+      return [firstVisibleColumn, lastVisibleColumn];
+    }
+    return [0, leafColumns.length];
+  }
+
+  function getColumnEndBoundaries(endBoundary: number): number[] {
+    const endBoundaries = [];
+    let startBoundary = 0;
+    for (let column of leafColumns) {
+      if (startBoundary > endBoundary) {
+        break;
+      }
+      endBoundaries.push(startBoundary + column.width + columnGap);
+      startBoundary += column.width + columnGap;
+    }
+    return endBoundaries;
+  }
 
   function getVisibleRowsRange() {
     if (viewportRef.current && (virtual === true || virtual === "rows")) {
@@ -575,11 +635,17 @@ export function Body({
     if (headerViewportRef.current) {
       headerViewportRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
-    if (viewportRef.current && (virtual === "rows" || virtual === true)) {
+    if (viewportRef.current && (virtual === true || virtual === "rows")) {
       setVisibleRows(getVisibleRowsRange());
+    }
+    if (viewportRef.current && (virtual === true || virtual === "columns")) {
+      const [start, end] = getVisibleColumnsRange();
+      setState.setVisibleStartColumn(start);
+      setState.setVisibleEndColumn(end);
     }
   }
 
+  const visibleColumns = spread(visibleColumnStart, visibleColumnEnd);
   const viewportStyles: CSSProperties = {
     overflow: "auto",
     width: "inherit",
@@ -767,7 +833,11 @@ export function Body({
                 {unpinnedLeafColumns.length > 0 &&
                   visibleRows.map((rowIndex) => {
                     const row = data[rowIndex];
-                    return unpinnedLeafColumns.map((columnDef, columnIndex) => {
+                    return visibleColumns.map((columnIndex) => {
+                      const columnDef = unpinnedLeafColumns[columnIndex];
+                      if (!columnDef) {
+                        return null;
+                      }
                       // TODO: Can we avoid 'colIndex' calculation?
                       const colIndex =
                         columnIndex + pinnedStartLeafColumns.length;
@@ -855,7 +925,11 @@ export function Body({
             <>
               {visibleRows.map((rowIndex) => {
                 const row = data[rowIndex];
-                return unpinnedLeafColumns.map((columnDef, columnIndex) => {
+                return visibleColumns.map((columnIndex) => {
+                  const columnDef = unpinnedLeafColumns[columnIndex];
+                  if (!columnDef) {
+                    return null;
+                  }
                   const isFocused =
                     focusedCell?.rowIndex === rowIndex &&
                     focusedCell?.columnIndex === columnIndex;
