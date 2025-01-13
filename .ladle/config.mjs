@@ -16,5 +16,6 @@ export default {
     "grid--programmatic-controls",
     "grid--virtual-rows",
     "grid--virtual-columns",
+    "grid--row-spanning",
   ],
 };

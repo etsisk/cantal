@@ -33,7 +33,12 @@ export function Simple() {
       ...def,
       width: 160,
     }));
-  return <Grid columnDefs={defs} data={data.slice(0, 6)} />;
+  return (
+    <>
+      <h1>Simple</h1>
+      <Grid columnDefs={defs} data={data.slice(0, 6)} />
+    </>
+  );
 }
 
 export function Sizing() {
@@ -43,6 +48,7 @@ export function Sizing() {
     : { width: "500px", height: "200px" };
   return (
     <div>
+      <h1>Sizing</h1>
       <p>
         <button onClick={() => setIsBlock(!isBlock)}>Toggle sizing</button>
       </p>
@@ -64,6 +70,7 @@ export function Styling() {
   ];
   return (
     <div>
+      <h1>Grid gap styling</h1>
       <p>
         <button
           onClick={() => setGapState((prev) => (prev === 2 ? 0 : prev + 1))}
@@ -95,7 +102,12 @@ export function CustomAriaLabels() {
     };
   });
 
-  return <Grid columnDefs={defs} data={data} />;
+  return (
+    <>
+      <h1>Custom aria labels</h1>
+      <Grid columnDefs={defs} data={data} />;
+    </>
+  );
 }
 
 export function Sorting() {
@@ -138,6 +150,11 @@ export function Sorting() {
 
   return (
     <div>
+      <h1>Sorting</h1>
+      <h2>TODO</h2>
+      <ul>
+        <li>Look into better approach to handling unsorted state</li>
+      </ul>
       <Grid
         columnDefs={defs}
         columnSorts={sorts}
@@ -232,6 +249,7 @@ export function Filtering() {
 
   return (
     <div>
+      <h1>Filtering</h1>
       <Grid
         columnDefs={defs}
         data={filter(data, filters)}
@@ -255,7 +273,12 @@ export function ColumnResizing() {
   ) {
     setDefs(columnDefs);
   }
-  return <Grid columnDefs={defs} data={data} handleResize={handleResize} />;
+  return (
+    <>
+      <h1>Column resizing</h1>
+      <Grid columnDefs={defs} data={data} handleResize={handleResize} />
+    </>
+  );
 }
 
 export function GroupedColumns() {
@@ -283,12 +306,15 @@ export function GroupedColumns() {
   }
 
   return (
-    <Grid
-      columnDefs={defs}
-      data={data}
-      handleResize={handleResize}
-      styles={{ container: { height: 410 } }}
-    />
+    <>
+      <h1>Grouped columns</h1>
+      <Grid
+        columnDefs={defs}
+        data={data}
+        handleResize={handleResize}
+        styles={{ container: { height: 410 } }}
+      />
+    </>
   );
 }
 
@@ -314,6 +340,7 @@ export function PinnedColumns() {
 
   return (
     <div>
+      <h1>Pinned columns</h1>
       <form ref={ref}>
         <label htmlFor="select">Choose a column to pin:</label>
         <select
@@ -391,21 +418,24 @@ export function PinnedColumns() {
 export function CellFocus() {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   return (
-    <Grid
-      columnDefs={colDefs}
-      data={data}
-      focusedCell={focusedCell}
-      handleFocusedCellChange={(
-        cell: Cell,
-        e: SyntheticEvent,
-        point: Point | undefined,
-      ) => {
-        if (cell) {
-          setFocusedCell(cell);
-        }
-      }}
-      styles={{ container: { height: 400, width: "800px" } }}
-    />
+    <>
+      <h1>Cell focus</h1>
+      <Grid
+        columnDefs={colDefs}
+        data={data}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(
+          cell: Cell,
+          e: SyntheticEvent,
+          point: Point | undefined,
+        ) => {
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
+        styles={{ container: { height: 400, width: "800px" } }}
+      />
+    </>
   );
 }
 
@@ -417,6 +447,7 @@ export function CellSelection() {
 
   return (
     <>
+      <h1>Cell selection</h1>
       <h3>TODO</h3>
       <ul>
         <li>Test on touch device</li>
@@ -493,20 +524,24 @@ export function CellCopy() {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   return (
-    <Grid
-      columnDefs={colDefs}
-      data={data}
-      focusedCell={focusedCell}
-      handleFocusedCellChange={(cell: Cell) => {
-        if (cell) {
-          setFocusedCell(cell);
-        }
-      }}
-      handleSelection={(selectedRanges: Range[]) => {
-        setSelectedRanges(selectedRanges);
-      }}
-      selectedRanges={selectedRanges}
-    />
+    <>
+      <h1>Cell copy</h1>
+      <Grid
+        columnDefs={colDefs}
+        data={data}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(cell: Cell) => {
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
+        handleSelection={(selectedRanges: Range[]) => {
+          setSelectedRanges(selectedRanges);
+        }}
+        selectedRanges={selectedRanges}
+        selectionFollowsFocus={true}
+      />
+    </>
   );
 }
 
@@ -577,6 +612,7 @@ export function ProgrammaticControls() {
   const leafColumns = getLeafColumns(defs);
   return (
     <div>
+      <h1>Programmatic controls</h1>
       <h2 style={{ marginBlockEnd: "5px" }}>Sorting</h2>
       <button onClick={() => setSorts({ city: "ascending" })}>
         Sort by Borough
@@ -667,6 +703,7 @@ export function VirtualRows() {
   const [selected, setSelected] = useState("");
   return (
     <>
+      <h1>Virtual rows</h1>
       <form>
         <label htmlFor="select">Choose a column to pin:</label>
         <select
@@ -752,6 +789,7 @@ export function VirtualColumns() {
   const [selected, setSelected] = useState("");
   return (
     <>
+      <h1>Virtual columns</h1>
       <form>
         <label htmlFor="select">Choose a column to pin:</label>
         <select
@@ -822,6 +860,152 @@ export function VirtualColumns() {
           },
         }}
         virtual="columns"
+      />
+    </>
+  );
+}
+
+export function RowSpanning() {
+  const [sorts, setSorts] = useState({});
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
+  const [selected, setSelected] = useState("");
+  const defs = colDefs
+    .slice(0, 2)
+    .concat(colDefs.slice(4, 7))
+    .map((def) => ({
+      ...def,
+      rowSpanning: def.field === "city",
+      ...(def.field === "zip"
+        ? {
+            rowSpanning: true,
+            sortable: true,
+            sortStates: [
+              { symbol: "↑↓" },
+              { label: "ascending", symbol: "↑" },
+              { label: "descending", symbol: "↓" },
+            ] satisfies NonEmptyArray<SortState>,
+          }
+        : {}),
+      width: 160,
+    }));
+
+  function sortingFunction(
+    data: DataRow[],
+    columnSorts: { [key: string]: string },
+  ) {
+    return data.toSorted((a: DataRow, b: DataRow) => {
+      for (let [field, value] of Object.entries(columnSorts)) {
+        if (value === "unsorted") {
+          continue;
+        }
+
+        const rowA = a[field] as string;
+        const rowB = b[field] as string;
+
+        let result = rowA == rowB ? 0 : rowA > rowB ? 1 : -1;
+        result *= value === "ascending" ? 1 : -1;
+
+        if (result !== 0) {
+          return result;
+        }
+      }
+
+      return 0;
+    });
+  }
+
+  return (
+    <>
+      <h1>Row spanning</h1>
+      <form>
+        <label htmlFor="select">Choose a column to pin:</label>
+        <select
+          id="select"
+          onChange={(e) => setSelected(e.target.value)}
+          style={{ display: "block" }}
+          value={selected}
+        >
+          <option value="" />
+          {getLeafColumns(defs).map((def) => (
+            <option key={def.field} value={def.field}>
+              {def.title}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "start" }));
+            setSelected("");
+          }}
+        >
+          Left
+        </button>
+        <button
+          disabled={selected === ""}
+          formAction={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "end" }));
+            setSelected("");
+          }}
+        >
+          Right
+        </button>
+        <button
+          disabled={
+            !Object.keys(pinned).includes(selected) ||
+            Object.keys(pinned).length === 0
+          }
+          formAction={() => {
+            setPinned((prev) =>
+              Object.keys(prev)
+                .filter((key) => key !== selected)
+                .reduce(
+                  (obj, key) => ({
+                    ...obj,
+                    [key]: prev[key as keyof typeof prev],
+                  }),
+                  {},
+                ),
+            );
+            setSelected("");
+          }}
+        >
+          Unpin
+        </button>
+      </form>
+      <br />
+      <Grid
+        columnDefs={defs.map((def) => {
+          return Object.keys(pinned).includes(def.field)
+            ? { ...def, pinned: pinned[def.field] }
+            : def;
+        })}
+        columnSorts={sorts}
+        data={sortingFunction(data, sorts)}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(cell: Cell) => {
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
+        handleSort={(columnSort, e) => {
+          if (columnSort !== undefined) {
+            if (e.shiftKey || e.metaKey) {
+              // multi column sort
+              setSorts({ ...sorts, ...columnSort });
+            } else {
+              // single column sort
+              setSorts(columnSort);
+            }
+          }
+        }}
+        styles={{
+          container: {
+            height: 300,
+          },
+        }}
+        virtual="rows"
       />
     </>
   );

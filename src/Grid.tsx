@@ -41,6 +41,8 @@ export interface ColumnDef {
   minWidth?: number;
   pinned?: "start" | "end";
   resizable?: boolean;
+  rowSpanComparator?: (prev: unknown, curr: unknown) => boolean;
+  rowSpanning?: boolean;
   sortable?: boolean;
   sortStates?: NonEmptyArray<SortState>;
   subcolumns?: ColumnDef[];
@@ -66,6 +68,8 @@ export interface ColumnDefWithDefaults extends ColumnDef {
   ariaHeaderCellLabel: string;
   filterer: TFilterProps<FiltererProps>;
   minWidth: number;
+  rowSpanComparator: (prev: unknown, curr: unknown) => boolean;
+  rowSpanning: boolean;
   sortStates: NonEmptyArray<SortState>;
   subcolumns: ColumnDefWithDefaults[];
   valueRenderer: <T>(args: {
@@ -407,6 +411,8 @@ const columnDefDefaults = {
       .join(" ")}`,
   filterer: Filter,
   minWidth: MIN_COLUMN_WIDTH,
+  rowSpanComparator: (prev: unknown, curr: unknown) => prev === curr,
+  rowSpanning: false,
   sortStates: [
     { label: "unsorted", symbol: "↑↓", iterable: false },
     { label: "ascending", symbol: "↑", iterable: true },

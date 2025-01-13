@@ -2,7 +2,9 @@ import type { PointerEvent } from "react";
 
 export interface SortState {
   iterable?: boolean;
-  label: string;
+  // TODO: I don't love label being optional here but it's a quick
+  // fix for getting an iterable "unsorting" to work
+  label?: string;
   symbol: string;
 }
 
@@ -29,4 +31,3 @@ export function Sorter({ className, handleSort, state }: SorterProps) {
     </button>
   );
 }
-

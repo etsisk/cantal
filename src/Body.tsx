@@ -138,7 +138,7 @@ export function Body({
     }
     // TODO: Are there edge cases with virtualization
     const columnDef = leafColumns[focusedCell?.columnIndex];
-    if (columnDef === undefined || columnDef.pinned !== undefined) {
+    if (columnDef === undefined) {
       return;
     }
     const viewportRect = getViewportBoundingBox(
@@ -146,7 +146,7 @@ export function Body({
       leafColumns,
       columnGap,
     );
-    // TODO: Account for non-pixel based widths (e.g. '1fr')
+    // NOTE: Doesn't acccount for non-pixel based widths (e.g. '1fr')
     const cellInlineStart = leafColumns.reduce((offset, def, i) => {
       if (i < focusedCell.columnIndex) {
         return offset + def.width + rowGap;
@@ -447,9 +447,28 @@ export function Body({
       if (focusedCell.rowIndex === 0) {
         return false;
       }
+      // First check if rowSpans exist for column
+      const hasSpans =
+        !!rowSpans?.[focusedCell.rowIndex]?.[focusedCell.columnIndex];
+      let rowOffset = 1;
+      if (hasSpans) {
+        while (focusedCell.rowIndex - rowOffset > 0) {
+          const row = rowSpans[focusedCell.rowIndex - rowOffset];
+          if (row) {
+            const span = row[focusedCell.columnIndex];
+            if (span === 1) {
+              break;
+            }
+            rowOffset += 1;
+          } else {
+            return false;
+          }
+        }
+      }
+      const offset = hasSpans ? rowOffset : 1;
       const newFocusedCell = {
         ...focusedCell,
-        rowIndex: focusedCell.rowIndex - 1,
+        rowIndex: focusedCell.rowIndex - offset,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
@@ -459,9 +478,14 @@ export function Body({
         return false;
       }
 
+      const offset =
+        rowSpans?.[focusedCell.rowIndex]?.[focusedCell.columnIndex] ?? 1;
+      if (focusedCell.rowIndex + offset > data.length - 1) {
+        return false;
+      }
       const newFocusedCell = {
         ...focusedCell,
-        rowIndex: focusedCell.rowIndex + 1,
+        rowIndex: focusedCell.rowIndex + offset,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
@@ -702,6 +726,12 @@ export function Body({
     ? leafColumns[focusedCell.columnIndex]
     : undefined;
 
+  const rowSpans = leafColumns
+    .slice(visibleColumnStart, visibleColumnEnd + 1)
+    .some((lc) => lc.rowSpanning)
+    ? getRowSpans(leafColumns, data, visibleColumns, visibleRows)
+    : undefined;
+
   return (
     <div
       className="cantal-body-viewport"
@@ -794,9 +824,30 @@ export function Body({
                     const row = data[rowIndex];
                     return pinnedStartLeafColumns.map(
                       (columnDef, columnIndex) => {
+                        const relativeRowIndex =
+                          (virtual === true || virtual === "rows") &&
+                          visibleRows[0]
+                            ? rowIndex - visibleRows[0]
+                            : rowIndex;
+                        if (
+                          columnDef.rowSpanning &&
+                          visibleRows[relativeRowIndex - 1] !== undefined &&
+                          // TODO: use `valueRenderer` instead of raw value for comparison
+                          columnDef.rowSpanComparator(
+                            data[rowIndex - 1][columnDef.field],
+                            row[columnDef.field],
+                          )
+                        ) {
+                          return null;
+                        }
+                        const rowSpan = rowSpans?.[rowIndex]?.[columnIndex];
                         const isFocused =
-                          focusedCell?.rowIndex === rowIndex &&
-                          focusedCell?.columnIndex === columnIndex;
+                          rowSpan && rowSpan > 1
+                            ? focusedCell?.columnIndex === columnIndex &&
+                              focusedCell?.rowIndex >= rowIndex &&
+                              focusedCell?.rowIndex < rowIndex + rowSpan
+                            : focusedCell?.rowIndex === rowIndex &&
+                              focusedCell?.columnIndex === columnIndex;
                         return (
                           <Cell
                             ariaLabel={
@@ -816,6 +867,8 @@ export function Body({
                             key={`${rowIndex}-${columnIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
+                            rowIndexRelative={relativeRowIndex}
+                            rowSpan={rowSpan}
                             selected={rangesContainCell(selectedRanges, {
                               columnIndex,
                               rowIndex,
@@ -838,12 +891,33 @@ export function Body({
                       if (!columnDef) {
                         return null;
                       }
+                      const relativeRowIndex =
+                        (virtual === true || virtual === "rows") &&
+                        visibleRows[0]
+                          ? rowIndex - visibleRows[0]
+                          : rowIndex;
+                      if (
+                        columnDef.rowSpanning &&
+                        visibleRows[relativeRowIndex - 1] !== undefined &&
+                        // TODO: use `valueRenderer` instead of raw value for comparison
+                        columnDef.rowSpanComparator(
+                          data[rowIndex - 1][columnDef.field],
+                          row[columnDef.field],
+                        )
+                      ) {
+                        return null;
+                      }
                       // TODO: Can we avoid 'colIndex' calculation?
                       const colIndex =
                         columnIndex + pinnedStartLeafColumns.length;
+                      const rowSpan = rowSpans?.[rowIndex]?.[colIndex];
                       const isFocused =
-                        focusedCell?.rowIndex === rowIndex &&
-                        focusedCell?.columnIndex === colIndex;
+                        rowSpan && rowSpan > 1
+                          ? focusedCell?.columnIndex === colIndex &&
+                            focusedCell?.rowIndex >= rowIndex &&
+                            focusedCell?.rowIndex < rowIndex + rowSpan
+                          : focusedCell?.rowIndex === rowIndex &&
+                            focusedCell?.columnIndex === colIndex;
                       return (
                         <Cell
                           ariaLabel={
@@ -863,6 +937,8 @@ export function Body({
                           key={`${rowIndex}-${colIndex}`}
                           position={positions.get(columnDef)}
                           rowIndex={rowIndex}
+                          rowIndexRelative={relativeRowIndex}
+                          rowSpan={rowSpan}
                           selected={rangesContainCell(selectedRanges, {
                             columnIndex,
                             rowIndex,
@@ -880,14 +956,35 @@ export function Body({
                     const row = data[rowIndex];
                     return pinnedEndLeafColumns.map(
                       (columnDef, columnIndex) => {
+                        const relativeRowIndex =
+                          (virtual === true || virtual === "rows") &&
+                          visibleRows[0]
+                            ? rowIndex - visibleRows[0]
+                            : rowIndex;
+                        if (
+                          columnDef.rowSpanning &&
+                          visibleRows[relativeRowIndex - 1] !== undefined &&
+                          // TODO: use `valueRenderer` instead of raw value for comparison
+                          columnDef.rowSpanComparator(
+                            data[rowIndex - 1][columnDef.field],
+                            row[columnDef.field],
+                          )
+                        ) {
+                          return null;
+                        }
                         // TODO: Can we avoid 'colIndex' calculation?
                         const colIndex =
                           columnIndex +
                           pinnedStartLeafColumns.length +
                           unpinnedLeafColumns.length;
+                        const rowSpan = rowSpans?.[rowIndex]?.[colIndex];
                         const isFocused =
-                          focusedCell?.rowIndex === rowIndex &&
-                          focusedCell?.columnIndex === colIndex;
+                          rowSpan && rowSpan > 1
+                            ? focusedCell?.columnIndex === colIndex &&
+                              focusedCell?.rowIndex >= rowIndex &&
+                              focusedCell?.rowIndex < rowIndex + rowSpan
+                            : focusedCell?.rowIndex === rowIndex &&
+                              focusedCell?.columnIndex === colIndex;
                         return (
                           <Cell
                             ariaLabel={
@@ -907,6 +1004,8 @@ export function Body({
                             key={`${rowIndex}-${colIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
+                            rowIndexRelative={relativeRowIndex}
+                            rowSpan={rowSpan}
                             selected={rangesContainCell(selectedRanges, {
                               columnIndex,
                               rowIndex,
@@ -927,12 +1026,32 @@ export function Body({
                 const row = data[rowIndex];
                 return visibleColumns.map((columnIndex) => {
                   const columnDef = unpinnedLeafColumns[columnIndex];
-                  if (!columnDef) {
+                  if (!row || !columnDef) {
                     return null;
                   }
+                  const relativeRowIndex =
+                    (virtual === true || virtual === "rows") && visibleRows[0]
+                      ? rowIndex - visibleRows[0]
+                      : rowIndex;
+                  if (
+                    columnDef.rowSpanning &&
+                    visibleRows[relativeRowIndex - 1] !== undefined &&
+                    // TODO: use `valueRenderer` instead of raw value for comparison
+                    columnDef.rowSpanComparator(
+                      data[rowIndex - 1][columnDef.field],
+                      row[columnDef.field],
+                    )
+                  ) {
+                    return null;
+                  }
+                  const rowSpan = rowSpans?.[rowIndex]?.[columnIndex];
                   const isFocused =
-                    focusedCell?.rowIndex === rowIndex &&
-                    focusedCell?.columnIndex === columnIndex;
+                    rowSpan && rowSpan > 1
+                      ? focusedCell?.columnIndex === columnIndex &&
+                        focusedCell?.rowIndex >= rowIndex &&
+                        focusedCell?.rowIndex < rowIndex + rowSpan
+                      : focusedCell?.rowIndex === rowIndex &&
+                        focusedCell?.columnIndex === columnIndex;
                   return (
                     <Cell
                       ariaLabel={
@@ -952,11 +1071,14 @@ export function Body({
                       isFocused={isFocused}
                       position={positions.get(columnDef)}
                       rowIndex={rowIndex}
+                      rowIndexRelative={relativeRowIndex}
+                      rowSpan={rowSpan}
                       selected={rangesContainCell(selectedRanges, {
                         columnIndex,
                         rowIndex,
                       })}
                     >
+                      {/* TODO: Switch to valueRenderer */}
                       {row[columnDef.field]}
                     </Cell>
                   );
@@ -1270,4 +1392,57 @@ function isKeyboardEvent(
 // TODO: Move to a utils file
 function spread(start: number, end: number) {
   return Array.from({ length: end - start }, (v, i) => start + i);
+}
+
+function getRowSpans(
+  leafColumns: LeafColumn[],
+  data: DataRow[],
+  visibleColumns: number[],
+  visibleRows: number[],
+): { [key: string]: { [key: string]: number } } {
+  const spans: { [key: string]: { [key: string]: number } } = {};
+
+  for (let columnIndex of visibleColumns) {
+    const colDef = leafColumns[columnIndex];
+    if (!colDef) {
+      continue;
+    }
+    const { field, rowSpanComparator, rowSpanning } = colDef;
+    if (!rowSpanning) {
+      continue;
+    }
+    let endIndex = visibleRows.at(-1);
+    if (!endIndex) {
+      continue;
+    }
+
+    for (let rowIndex of visibleRows) {
+      spans[rowIndex] ??= {};
+
+      if (!rowSpanning) {
+        spans[rowIndex][columnIndex] = 1;
+      } else {
+        let span = 1;
+        while (rowIndex + span <= endIndex + 1) {
+          if (
+            rowSpanComparator(
+              // TODO: Compare with valueRenderer
+              data[rowIndex]?.[field],
+              data[rowIndex + span]?.[field],
+            )
+          ) {
+            if (rowIndex + span + 1 > endIndex + 1) {
+              spans[rowIndex][columnIndex] = span;
+              break;
+            }
+            span += 1;
+          } else {
+            spans[rowIndex][columnIndex] = span;
+            break;
+          }
+        }
+      }
+    }
+  }
+  return spans;
 }

@@ -9,6 +9,8 @@ interface CellProps {
   isFocused: boolean;
   position: Position | undefined;
   rowIndex: number;
+  rowIndexRelative: number;
+  rowSpan?: number;
   selected: boolean;
 }
 
@@ -20,6 +22,8 @@ export function Cell({
   isFocused,
   position,
   rowIndex,
+  rowIndexRelative,
+  rowSpan = 1,
   selected = false,
 }: CellProps) {
   if (position === undefined) {
@@ -43,6 +47,8 @@ export function Cell({
       style={{
         gridColumnStart: position.pinnedIndex,
         gridColumnEnd: position.pinnedIndexEnd,
+        gridRowStart: rowIndexRelative + 1,
+        gridRowEnd: rowIndexRelative + 1 + rowSpan,
       }}
     >
       {children}
