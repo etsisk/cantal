@@ -825,10 +825,17 @@ export function Body({
                         if (
                           columnDef.rowSpanning &&
                           visibleRows[relativeRowIndex - 1] !== undefined &&
-                          // TODO: use `valueRenderer` instead of raw value for comparison
                           columnDef.rowSpanComparator(
-                            data[rowIndex - 1][columnDef.field],
-                            row[columnDef.field],
+                            columnDef.valueRenderer({
+                              columnDef,
+                              data: data[rowIndex - 1],
+                              value: data[rowIndex - 1][columnDef.field],
+                            }),
+                            columnDef.valueRenderer({
+                              columnDef,
+                              data: row,
+                              value: row[columnDef.field],
+                            }),
                           )
                         ) {
                           return null;
@@ -867,7 +874,11 @@ export function Body({
                               rowIndex,
                             })}
                           >
-                            {row[columnDef.field]}
+                            {columnDef.valueRenderer({
+                              columnDef,
+                              data: row,
+                              value: row[columnDef.field],
+                            })}
                           </Cell>
                         );
                       },
@@ -892,10 +903,17 @@ export function Body({
                       if (
                         columnDef.rowSpanning &&
                         visibleRows[relativeRowIndex - 1] !== undefined &&
-                        // TODO: use `valueRenderer` instead of raw value for comparison
                         columnDef.rowSpanComparator(
-                          data[rowIndex - 1][columnDef.field],
-                          row[columnDef.field],
+                          columnDef.valueRenderer({
+                            columnDef,
+                            data: data[rowIndex - 1],
+                            value: data[rowIndex - 1][columnDef.field],
+                          }),
+                          columnDef.valueRenderer({
+                            columnDef,
+                            data: row,
+                            value: row[columnDef.field],
+                          }),
                         )
                       ) {
                         return null;
@@ -937,7 +955,11 @@ export function Body({
                             rowIndex,
                           })}
                         >
-                          {row[columnDef.field]}
+                          {columnDef.valueRenderer({
+                            columnDef,
+                            data: row,
+                            value: row[columnDef.field],
+                          })}
                         </Cell>
                       );
                     });
@@ -957,10 +979,17 @@ export function Body({
                         if (
                           columnDef.rowSpanning &&
                           visibleRows[relativeRowIndex - 1] !== undefined &&
-                          // TODO: use `valueRenderer` instead of raw value for comparison
                           columnDef.rowSpanComparator(
-                            data[rowIndex - 1][columnDef.field],
-                            row[columnDef.field],
+                            columnDef.valueRenderer({
+                              columnDef,
+                              data: data[rowIndex - 1],
+                              value: data[rowIndex - 1][columnDef.field],
+                            }),
+                            columnDef.valueRenderer({
+                              columnDef,
+                              data: row,
+                              value: row[columnDef.field],
+                            }),
                           )
                         ) {
                           return null;
@@ -1004,7 +1033,11 @@ export function Body({
                               rowIndex,
                             })}
                           >
-                            {row[columnDef.field]}
+                            {columnDef.valueRenderer({
+                              columnDef,
+                              data: row,
+                              value: row[columnDef.field],
+                            })}
                           </Cell>
                         );
                       },
@@ -1029,10 +1062,17 @@ export function Body({
                   if (
                     columnDef.rowSpanning &&
                     visibleRows[relativeRowIndex - 1] !== undefined &&
-                    // TODO: use `valueRenderer` instead of raw value for comparison
                     columnDef.rowSpanComparator(
-                      data[rowIndex - 1][columnDef.field],
-                      row[columnDef.field],
+                      columnDef.valueRenderer({
+                        columnDef,
+                        data: data[rowIndex - 1],
+                        value: data[rowIndex - 1][columnDef.field],
+                      }),
+                      columnDef.valueRenderer({
+                        columnDef,
+                        data: row,
+                        value: row[columnDef.field],
+                      }),
                     )
                   ) {
                     return null;
@@ -1071,8 +1111,11 @@ export function Body({
                         rowIndex,
                       })}
                     >
-                      {/* TODO: Switch to valueRenderer */}
-                      {row[columnDef.field]}
+                      {columnDef.valueRenderer({
+                        columnDef,
+                        data: row,
+                        value: row[columnDef.field],
+                      })}
                     </Cell>
                   );
                 });
