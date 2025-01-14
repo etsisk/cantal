@@ -418,6 +418,12 @@ export function Body({
       } else {
         navigateCell(e, dir);
       }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      navigateCell(e, e.shiftKey ? "left" : "right", true);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      navigateCell(e, e.shiftKey ? "up" : "down");
     } else if (e.key === "c" && (e.metaKey || e.ctrlKey)) {
       handleCopy();
     }
@@ -427,18 +433,6 @@ export function Body({
     e: KeyboardEvent<HTMLDivElement>,
     dir: Direction,
     wrap: boolean = false,
-  ): boolean {
-    // QUESTION: Merge into single function?
-    // return hasGridBodyAreas
-    //   ? navigateCellByGridColumn(event, dir, wrap)
-    //   : navigateCellByOne(event, dir, wrap);
-    return navigateCellByOne(e, dir, wrap);
-  }
-
-  function navigateCellByOne(
-    e: KeyboardEvent<HTMLDivElement>,
-    dir: Direction,
-    wrap: boolean,
   ): boolean {
     if (!focusedCell) {
       return false;
@@ -707,12 +701,6 @@ export function Body({
       leafColumns.length - pinnedEndLeafColumns.length + 1
     }`,
     gridTemplateColumns: "subgrid",
-    // TODO: This is kind of a hack (at least for unpinnedStyles,
-    // need to confirm for pinnedStyles) It would be better if
-    // `grid-body` element took the height of it's children
-    backgroundColor: "var(--background-color)",
-    height: "max-content",
-    // end kind of a hack
   };
 
   const pinnedEndStyles: CSSProperties = {
@@ -809,6 +797,11 @@ export function Body({
             insetBlockStart: visibleRows[0]
               ? visibleRows[0] * (rowHeight + rowGap)
               : 0,
+            ...(pinnedStartLeafColumns.concat(pinnedEndLeafColumns).length > 0
+              ? {
+                  height: `${rowHeight * visibleRows.length + rowGap * visibleRows.length - 1}px`,
+                }
+              : {}),
             ...styles,
           }}
         >
