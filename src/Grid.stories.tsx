@@ -151,10 +151,6 @@ export function Sorting() {
   return (
     <div>
       <h1>Sorting</h1>
-      <h2>TODO</h2>
-      <ul>
-        <li>Look into better approach to handling unsorted state</li>
-      </ul>
       <Grid
         columnDefs={defs}
         columnSorts={sorts}
@@ -761,10 +757,6 @@ export function VirtualRows() {
         </button>
       </form>
       <br />
-      <h2>TODO</h2>
-      <ul>
-        <li>Find solution for grid-body hack (when columns are pinned)</li>
-      </ul>
       <Grid
         columnDefs={colDefs.map((def) => {
           return Object.keys(pinned).includes(def.field)
@@ -881,7 +873,7 @@ export function RowSpanning() {
             rowSpanning: true,
             sortable: true,
             sortStates: [
-              { symbol: "↑↓" },
+              { label: "unsorted", symbol: "↑↓" },
               { label: "ascending", symbol: "↑" },
               { label: "descending", symbol: "↓" },
             ] satisfies NonEmptyArray<SortState>,

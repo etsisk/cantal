@@ -123,9 +123,9 @@ function updateSorts(
   sorting: { [key: string]: string },
   states: NonEmptyArray<SortState>,
 ): { [key: string]: string } | undefined {
-  const currentSortState = states.find(
-    (state) => state.label === sorting[field],
-  );
+  const currentSortState =
+    states.find((state) => state.label === sorting[field]) ??
+    findState(field, sorting, states);
   const iterableStates = states.filter((state) => state.iterable !== false);
 
   if (isNonEmptyArray(iterableStates)) {
