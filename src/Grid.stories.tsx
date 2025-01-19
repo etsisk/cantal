@@ -88,7 +88,7 @@ export function Styling() {
         gap={gapStates[gapState]}
         styles={{
           container: {
-            borderColor: gapState === 1 ? "transparent" : "#ccc",
+            borderColor: gapState === 1 ? "transparent" : "var(--border-color)",
           },
         }}
       />
