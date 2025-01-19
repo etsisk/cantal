@@ -451,17 +451,6 @@ function applyColumnDefDefaults(
   });
 }
 
-// export function getLeafColumns(
-//   defs: ColumnDefWithDefaults[],
-// ): ColumnDefWithDefaults[] {
-//   return defs.flatMap((def) => {
-//     if (def.subcolumns && def.subcolumns.length > 0) {
-//       return getLeafColumns(def.subcolumns).flat();
-//     }
-//     return [def];
-//   });
-// }
-
 // TODO: Expose API to consumers
 export function getLeafColumns(
   columnDefs: (ColumnDef | ColumnDefWithDefaults)[],
