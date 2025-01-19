@@ -1460,11 +1460,22 @@ function getRowSpans(
       } else {
         let span = 1;
         while (rowIndex + span <= endIndex + 1) {
+          const currentRow = data[rowIndex];
+          const nextRow = data[rowIndex + span];
           if (
+            currentRow &&
+            nextRow &&
             rowSpanComparator(
-              // TODO: Compare with valueRenderer
-              data[rowIndex]?.[field],
-              data[rowIndex + span]?.[field],
+              colDef.valueRenderer({
+                columnDef: colDef,
+                data: currentRow,
+                value: currentRow[field],
+              }),
+              colDef.valueRenderer({
+                columnDef: colDef,
+                data: nextRow,
+                value: nextRow[field],
+              }),
             )
           ) {
             if (rowIndex + span + 1 > endIndex + 1) {
