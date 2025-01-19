@@ -356,6 +356,7 @@ export function Body({
   }
 
   function handleCopy() {
+    // TODO: Enhance copy matrix to account for spanned cells
     const str = getCopyMatrix(data, leafColumns, selectedRanges)
       .map((row) => row.join("\t"))
       .join("\n");
