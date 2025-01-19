@@ -118,11 +118,18 @@ export function Sorting() {
   const defs = colDefs.map((def) => ({
     ...def,
     sortable: true,
-    sortStates: [
-      { label: "unsorted", symbol: "↑↓", iterable: false },
-      { label: "ascending", symbol: "↑" },
-      { label: "descending", symbol: "↓" },
-    ] satisfies NonEmptyArray<SortState>,
+    sortStates:
+      def.field === "primaryPropertyType"
+        ? ([
+            { label: "unsorted", symbol: "🏢" },
+            { label: "ascending", symbol: "🏫" },
+            { label: "descending", symbol: "🏛️" },
+          ] satisfies NonEmptyArray<SortState>)
+        : ([
+            { label: "unsorted", symbol: "↑↓", iterable: false },
+            { label: "ascending", symbol: "↑" },
+            { label: "descending", symbol: "↓" },
+          ] satisfies NonEmptyArray<SortState>),
     width: 180,
   }));
 
@@ -154,6 +161,12 @@ export function Sorting() {
   return (
     <div>
       <h1>Sorting</h1>
+      <p>
+        In this example, you can define your own custom sort symbols (see the{" "}
+        <em>Primary Property Type - Self-Selected</em> column). You can also
+        define which sort states you can cycle through. In this case, all of the
+        other columns exclude the "unsorted" state from being cycled to.
+      </p>
       <Grid
         columnDefs={defs}
         columnSorts={sorts}
@@ -768,6 +781,12 @@ export function VirtualRows() {
             : def;
         })}
         data={data}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(cell: Cell) => {
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
         styles={{
           container: {
             height: 300,
@@ -775,6 +794,14 @@ export function VirtualRows() {
         }}
         virtual="rows"
       />
+      <h2>Focus management</h2>
+      <p>
+        If your focused cell scrolls out of the "window" and is removed from the
+        DOM, Cantal is smart enough to not lose focus. Try clicking on a cell to
+        set it in focus, then scroll up or down by ~50 rows or so to make sure
+        the cell is removed from the DOM. Now use your arrow keys to change the
+        cell in focus.
+      </p>
     </>
   );
 }
@@ -864,6 +891,7 @@ export function VirtualColumns() {
 export function RowSpanning() {
   const [sorts, setSorts] = useState({});
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const [selected, setSelected] = useState("");
   const defs = colDefs
@@ -985,6 +1013,9 @@ export function RowSpanning() {
             setFocusedCell(cell);
           }
         }}
+        handleSelection={(selectedRanges: Range[]) => {
+          setSelectedRanges(selectedRanges);
+        }}
         handleSort={(columnSort, e) => {
           if (columnSort !== undefined) {
             if (e.shiftKey || e.metaKey) {
@@ -996,6 +1027,9 @@ export function RowSpanning() {
             }
           }
         }}
+        selectedRanges={selectedRanges}
+        selectionFollowsFocus={true}
+        showSelectionBox={true}
         styles={{
           container: {
             height: 300,
