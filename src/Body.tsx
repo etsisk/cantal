@@ -556,8 +556,9 @@ export function Body({
       const point = getPointFromEvent(e, canvasRef.current);
 
       handleSelection(
-        [range(focusedCell.rowIndex, focusedCell.columnIndex)],
-        point,
+        getSelectionRangeWithSpans(
+          range(focusedCell.rowIndex, focusedCell.columnIndex),
+        ),
         // getSelectionRangeWithMergedCells(
         //   new Range(focusedCell.rowIdx, focusedCell.colIdx),
         //   rangeSelectionBehavior,
@@ -566,9 +567,46 @@ export function Body({
         //   hasGridBodyAreas,
         //   columnSpansByRow
         // ),
+        point,
         e,
       );
     }
+  }
+
+  function getSelectionRangeWithSpans(selectedRange: Range): Range[] {
+    if (!rowSpans?.[selectedRange.fromRow]?.[selectedRange.fromColumn]) {
+      return [selectedRange];
+    }
+    const fromRowOffset = findRowSpanStartOffset({
+      columnIndex: selectedRange.fromColumn,
+      rowIndex: selectedRange.fromRow,
+    });
+    let startColumn = selectedRange.fromColumn;
+    let endColumn = selectedRange.toColumn;
+    let startRow = selectedRange.fromRow - fromRowOffset;
+    let endRow = selectedRange.toRow;
+
+    return [range(startRow, startColumn, endRow, endColumn)];
+  }
+
+  function findRowSpanStartOffset(cell: Cell): number {
+    let rowOffset = 1;
+    if (!cell || !rowSpans) {
+      return rowOffset - 1;
+    }
+    while (cell.rowIndex - rowOffset > 0) {
+      const row = rowSpans[cell.rowIndex - rowOffset];
+      if (row) {
+        const span = row[cell.columnIndex];
+        if (span === 1) {
+          break;
+        }
+        rowOffset += 1;
+      } else {
+        break;
+      }
+    }
+    return rowOffset - 1;
   }
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -619,12 +657,17 @@ export function Body({
       handleSelection
     ) {
       handleSelection(
-        //   getSelectionRangeWithMergedCells(
-        [
+        getSelectionRangeWithSpans(
           range(focusedCell.rowIndex, focusedCell.columnIndex).merge(
             range(cell.rowIndex, cell.columnIndex),
           ),
-        ],
+        ),
+        //   getSelectionRangeWithMergedCells(
+        // [
+        // range(focusedCell.rowIndex, focusedCell.columnIndex).merge(
+        // range(cell.rowIndex, cell.columnIndex),
+        // ),
+        // ],
         //     rangeSelectionBehavior,
         //     leafColumns,
         //     data,
