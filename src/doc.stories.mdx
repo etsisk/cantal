@@ -1,0 +1,61 @@
+import { Meta } from "@ladle/react";
+
+<Meta title="Doc/Guide" />
+
+# Cantal
+
+## Grid props
+
+| Prop name | Description |
+|-----------|-------------|
+| body      | A function that returns the body component |
+| columnDefs | An array of objects containing properties that determine the number of columns and their behavior. See the [**Column definitions**](#column-definitions) section below for details |
+| columnFilters | An object that tracks the state of each column's current filter value. The object keys represent the column and the values represent the filter value |
+| columnSorts | An object that tracks the state of each column's current sort mode. The object keys represent the column and the values represent the sort mode |
+| columnSpanning | Indicates whether or not cells in a row can span over multiple columns. TODO |
+| data | An array of objects where each object represents a row of data |
+| focusedCell | Represents the cell that currently has focus. TODO
+| gap | Defines the spacing (in pixels) between each cell. Accepts an integer or an object, e.g. `{ columnGap: 1, rowGap: 1 }`
+| handleColumnFilter | |
+| handleColumnSort | |
+| handleFocusedCellChange | |
+| handleKeyDown | |
+| handlePointerDown | |
+| handleResize | |
+| handleSelection | |
+| header | |
+| id | |
+| overscanColumns | |
+| overscanRows | |
+| rowHeight | |
+| selectedRanges | |
+| selectionFollowsFocus | |
+| styles | |
+| virtual | |
+
+## <a name="column-definitions"></a>Column definitions
+
+Column definitions determine a lot of the behavior of the grid. Below is a list of all the column definition properties Cantal knows about:
+
+| Key | Description |
+|-----|-------------|
+| ariaCellLabel | Sets the `aria-label` attribute of the cells in the column |
+| ariaHeaderCellLabel | Sets the `aria-label` attribute of the column header cells |
+| field | A required property that's used to look up the value from the data row object |
+| filterable | Determines whether the filter control is displayed in the column header |
+| filterer | Used for defined your own custom filter component that's displayed in the column header |
+| minWidth | Minimum width (in pixels) of the column
+| pinned | Determines whether a column is pinned to one side of the grid or the other |
+| resizable | Allows the column to be resized by rendering a resizer element in the column header |
+| rowSpanComparator | A function that compares adjacent cells in the same column and determines where row span boundaries lie |
+| rowSpanning | Determines whether a column has the ability to span rows |
+| sortable | Determines whether the sort control is displayed in the column heaer |
+| sortStates | The list of sort modes to cycle through when sorting a column |
+| subcolumns | The list of child column definitions that fall under the defining column definition |
+| title | The column header label text |
+| valueRenderer | A function that's responsible for the rendered output of the cell |
+| width | Sets the initial width of the column |
+
+## Constraints
+
+CSS Grid layout is the underlying technology used to render your grid data. Browser impose a limits on the number of rows/columns one can render for a grid. Therefore, you'll likely see warnings if you're rendering cells in thousands. If you're attempting to render thousands of cells, it's recommended to use the `virtual` prop to improve performance by limiting the number of cells rendered at any given time.

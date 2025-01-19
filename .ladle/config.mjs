@@ -1,6 +1,7 @@
 /** @type {import('@ladle/react').UserConfig} */
 export default {
   storyOrder: [
+    "doc--guide",
     "grid--simple",
     "grid--sizing",
     "grid--styling",
