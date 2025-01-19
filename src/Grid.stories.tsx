@@ -25,6 +25,9 @@ export default {
   },
 };
 
+const manyRows = generateData(100_000, 10);
+const manyColumns = generateData(10, 10_000);
+
 export function Simple() {
   const defs = colDefs
     .slice(0, 2)
@@ -694,7 +697,8 @@ export function ProgrammaticControls() {
 }
 
 export function VirtualRows() {
-  const { colDefs, data } = generateData(100_000, 10);
+  const { colDefs, data } = manyRows;
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const [selected, setSelected] = useState("");
   return (
@@ -776,7 +780,7 @@ export function VirtualRows() {
 }
 
 export function VirtualColumns() {
-  const { colDefs, data } = generateData(10, 10_000);
+  const { colDefs, data } = manyColumns;
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const [selected, setSelected] = useState("");
   return (
