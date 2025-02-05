@@ -4,6 +4,31 @@ import { Meta } from "@ladle/react";
 
 # Cantal
 
+## Overview
+
+Cantal is a lightweight but powerful grid library for React. Its primary responsibilities are rendering the layout of the grid and exposing grid events. It comes with sane defaults and it's highly customizable.
+
+## Motivation
+
+Cantal aims to offer the capabilities that come with an enterprise offering in a very lightweight package. You can kind of think of Cantal is a combination of the best parts of Tanstack Table and AG-Grid.
+
+## Features
+
+- Accessible
+- Custom styles
+- Column resizing
+- Multi-column sorting
+- Column filtering
+- Column grouping
+- Column pinning
+- Row spanning
+- Column spanning
+- Focus management
+- Cell, row, and range selection
+- Advanced copy / paste
+- Cell editing
+- Virtualization
+
 ## Grid props
 
 | Prop name | Description |
@@ -12,10 +37,10 @@ import { Meta } from "@ladle/react";
 | columnDefs | An array of objects containing properties that determine the number of columns and their behavior. See the [**Column definitions**](#column-definitions) section below for details |
 | columnFilters | An object that tracks the state of each column's current filter value. The object keys represent the column and the values represent the filter value |
 | columnSorts | An object that tracks the state of each column's current sort mode. The object keys represent the column and the values represent the sort mode |
-| columnSpanning | Indicates whether or not cells in a row can span over multiple columns. TODO |
+| columnSpans | A reference to the key of the column spanning definitions on the row data object, e.g. "columnSpansKey" where the data object might look like `{ fieldA: 1, ..., columnSpansKey: [{ field: 'spanIdOrField', from: 0, to: 1 }] }`. See the [**Column spanning**](#column-spanning) section below for details  |
 | data | An array of objects where each object represents a row of data |
 | focusedCell | Represents the cell that currently has focus. TODO
-| gap | Defines the spacing (in pixels) between each cell. Accepts an integer or an object, e.g. `{ columnGap: 1, rowGap: 1 }`
+| gap | Defines the spacing (in pixels) between each cell. Accepts an integer or an object, e.g. `{ columnGap: 1, rowGap: 1 }` |
 | handleColumnFilter | |
 | handleColumnSort | |
 | handleFocusedCellChange | |
@@ -59,3 +84,7 @@ Column definitions determine a lot of the behavior of the grid. Below is a list 
 ## Constraints
 
 CSS Grid layout is the underlying technology used to render your grid data. Browser impose a limits on the number of rows/columns one can render for a grid. Therefore, you'll likely see warnings if you're rendering cells in thousands. If you're attempting to render thousands of cells, it's recommended to use the `virtual` prop to improve performance by limiting the number of cells rendered at any given time.
+
+## <a name="column-spanning"></a>Column spanning
+
+Column spanning is one of the few features that is defined by a data row object.

@@ -18,5 +18,6 @@ export default {
     "grid--virtual-rows",
     "grid--virtual-columns",
     "grid--row-spanning",
+    "grid--column-spanning",
   ],
 };

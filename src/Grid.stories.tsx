@@ -146,7 +146,13 @@ export function Sorting() {
         const rowA = a[field] as string;
         const rowB = b[field] as string;
 
-        let result = rowA == rowB ? 0 : rowA > rowB ? 1 : -1;
+        let result =
+          rowA == rowB
+            ? 0
+            : rowA > rowB ||
+                (typeof rowA === "number" && typeof rowB === "string")
+              ? 1
+              : -1;
         result *= value === "ascending" ? 1 : -1;
 
         if (result !== 0) {
@@ -1036,6 +1042,222 @@ export function RowSpanning() {
           },
         }}
         virtual="rows"
+      />
+    </>
+  );
+}
+
+export function ColumnSpanning() {
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
+  const ref = useRef<HTMLFormElement>(null);
+  const [selected, setSelected] = useState("");
+  const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
+  const columnDefinitions = colDefs
+    .map((def) =>
+      def.field === "meteredAreasEnergy" ? { ...def, rowSpanning: true } : def,
+    )
+    .map((cd) =>
+      Object.keys(pinned).includes(cd.field)
+        ? { ...cd, pinned: pinned[cd.field] }
+        : cd,
+    );
+  function sortingFunction(
+    data: DataRow[],
+    columnSorts: { [key: string]: string },
+  ) {
+    return data.toSorted((a: DataRow, b: DataRow) => {
+      for (let [field, value] of Object.entries(columnSorts)) {
+        if (value === "unsorted") {
+          continue;
+        }
+
+        const rowA = a[field] as string;
+        const rowB = b[field] as string;
+
+        let result =
+          rowA == rowB
+            ? 0
+            : rowA > rowB ||
+                (typeof rowA === "number" && typeof rowB === "string")
+              ? 1
+              : -1;
+        result *= value === "ascending" ? 1 : -1;
+
+        if (result !== 0) {
+          return result;
+        }
+      }
+
+      return 0;
+    });
+  }
+
+  return (
+    <>
+      <h1>Column spanning</h1>
+      <h2>TODO</h2>
+      <ul>
+        <li>
+          Consider removing focus/selection when interacting with header
+          elements (e.g. sorter)
+        </li>
+      </ul>
+      <form ref={ref}>
+        <label htmlFor="select">Choose a column to pin:</label>
+        <select
+          id="select"
+          onChange={(e) => setSelected(e.target.value)}
+          style={{ display: "block" }}
+          value={selected}
+        >
+          <option value="" />
+          {getLeafColumns(columnDefinitions).map((def) => (
+            <option key={def.field} value={def.field}>
+              {def.title}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={selected === ""}
+          onClick={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "start" }));
+            if (ref.current) {
+              setSelected("");
+              ref.current?.reset();
+            }
+          }}
+          type="button"
+        >
+          Left
+        </button>
+        <button
+          disabled={selected === ""}
+          onClick={() => {
+            setPinned((prev) => ({ ...prev, [selected]: "end" }));
+            setSelected("");
+            ref.current?.reset();
+          }}
+          type="button"
+        >
+          Right
+        </button>
+        <button
+          disabled={
+            !Object.keys(pinned).includes(selected) ||
+            Object.keys(pinned).length === 0
+          }
+          onClick={() => {
+            setPinned((prev) =>
+              Object.keys(prev)
+                .filter((key) => key !== selected)
+                .reduce(
+                  (obj, key) => ({
+                    ...obj,
+                    [key]: prev[key as keyof typeof prev],
+                  }),
+                  {},
+                ),
+            );
+            setSelected("");
+            ref.current?.reset();
+          }}
+          type="button"
+        >
+          Unpin
+        </button>
+      </form>
+      <br />
+      <Grid
+        columnDefs={columnDefinitions}
+        columnSpans="columnSpans"
+        data={sortingFunction(data, { energyStarScore: "descending" }).flatMap(
+          (row, i) => {
+            if (i === 0) {
+              return [
+                {
+                  columnSpans: [
+                    {
+                      field: "eggcellent",
+                      from: 0,
+                      to: colDefs.length - 1,
+                      valueRenderer: () => "Excellent",
+                    },
+                  ],
+                },
+                row,
+              ];
+            }
+            if (row.energyStarScore === 79) {
+              return [
+                {
+                  columnSpans: [
+                    {
+                      field: "meteredAreasEnergy",
+                      from: 4,
+                      to: 16,
+                    },
+                  ],
+                  meteredAreasEnergy: "Whole Property",
+                },
+                row,
+              ];
+            }
+            if (row.energyStarScore === 66) {
+              return [
+                {
+                  columnSpans: [
+                    {
+                      field: "poor",
+                      from: 0,
+                      to: 5,
+                      valueRenderer: () => "Poor",
+                    },
+                  ],
+                },
+                row,
+              ];
+            }
+            if (
+              row.energyStarScore === "Not Available" &&
+              i < data.length - 1
+            ) {
+              return [
+                {
+                  columnSpans: [
+                    {
+                      field: "na",
+                      from: colDefs.length - 7,
+                      to: colDefs.length - 1,
+                      valueRenderer: () => "Not Available",
+                    },
+                  ],
+                },
+                row,
+              ];
+            }
+            return [row];
+          },
+        )}
+        focusedCell={focusedCell}
+        handleFocusedCellChange={(cell: Cell) => {
+          console.log({ focusedCell: cell });
+          if (cell) {
+            setFocusedCell(cell);
+          }
+        }}
+        handleSelection={(selectedRanges: Range[]) => {
+          setSelectedRanges(selectedRanges);
+        }}
+        selectedRanges={selectedRanges}
+        selectionFollowsFocus={true}
+        styles={{
+          container: {
+            height: "50vh",
+            width: "calc(100vw - 375px)",
+          },
+        }}
+        virtual={true}
       />
     </>
   );

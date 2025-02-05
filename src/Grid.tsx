@@ -12,7 +12,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { Body, type Cell, type IndexedArray, type Range } from "./Body";
+import {
+  Body,
+  type Cell,
+  type ColumnSpan,
+  type IndexedArray,
+  type Range,
+} from "./Body";
 import { Header } from "./Header";
 import { Filter, type FiltererProps } from "./Filter";
 import type { SortState } from "./Sorter";
@@ -20,21 +26,22 @@ import type { SortState } from "./Sorter";
 type RefCallback<T> = (instance: T | null) => void;
 export type NonEmptyArray<T> = [T, ...T[]];
 type TFilterProps<T> = FC<T>;
+type AriaCellLabelArgs = {
+  columnIndex: number;
+  data: DataRow;
+  def: LeafColumn;
+  rowIndex: number;
+  value: unknown;
+};
+type AriaCellLabel = string | ((args: AriaCellLabelArgs) => string);
+type AriaHeaderCellLabel =
+  | string
+  | ((args: { def: ColumnDefWithDefaults; position: Position }) => string);
 
 export type DataRow = Record<string, unknown>;
 export interface ColumnDef {
-  ariaCellLabel?:
-    | string
-    | ((props: {
-        columnIndex: number;
-        data: DataRow;
-        def: ColumnDefWithDefaults;
-        rowIndex: number;
-        value: unknown;
-      }) => string);
-  ariaHeaderCellLabel?:
-    | string
-    | ((props: { def: ColumnDefWithDefaults; position: Position }) => string);
+  ariaCellLabel?: AriaCellLabel;
+  ariaHeaderCellLabel?: AriaHeaderCellLabel;
   field: string;
   filterable?: boolean;
   filterer?: TFilterProps<FiltererProps>;
@@ -56,16 +63,8 @@ export interface ColumnDef {
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
-  ariaCellLabel:
-    | string
-    | ((props: {
-        columnIndex: number;
-        data: DataRow;
-        def: ColumnDefWithDefaults;
-        rowIndex: number;
-        value: unknown;
-      }) => string);
-  ariaHeaderCellLabel: string;
+  ariaCellLabel: AriaCellLabel;
+  ariaHeaderCellLabel: AriaHeaderCellLabel;
   filterer: TFilterProps<FiltererProps>;
   minWidth: number;
   rowSpanComparator: (prev: unknown, curr: unknown) => boolean;
@@ -135,6 +134,7 @@ interface GridProps {
   ) => ReactNode;
   columnDefs: ColumnDef[];
   columnSorts?: { [key: string]: string };
+  columnSpans?: string;
   data: DataRow[];
   filters?: { [key: string]: string };
   focusedCell?: Cell | null;
@@ -205,6 +205,7 @@ export function Grid({
     <Body
       canvasWidth={canvasWidth}
       columnGap={typeof gap === "number" ? gap : gap.columnGap}
+      columnSpans={columnSpans}
       containerHeight={height}
       data={data}
       focusedCell={focusedCell}
@@ -231,6 +232,7 @@ export function Grid({
   ),
   columnDefs,
   columnSorts = {},
+  columnSpans,
   data,
   filters = {},
   focusedCell,
@@ -379,13 +381,7 @@ const columnDefDefaults = {
     def,
     rowIndex,
     value,
-  }: {
-    columnIndex: number;
-    data: DataRow;
-    def: ColumnDefWithDefaults;
-    rowIndex: number;
-    value: unknown;
-  }): string =>
+  }: AriaCellLabelArgs): string =>
     `Column ${columnIndex + 1}${
       typeof def.pinned === "string" && ["start", "end"].includes(def.pinned)
         ? ", pinned"
@@ -398,7 +394,7 @@ const columnDefDefaults = {
   }: {
     def: ColumnDefWithDefaults | LeafColumn;
     position: Position;
-  }) =>
+  }): string =>
     `Column ${position.columnIndex}, ${position.ancestors
       .map((ancestor) => ancestor.title)
       .filter((title) => {
@@ -449,6 +445,24 @@ function applyColumnDefDefaults(
 
     return defWithDefaults;
   });
+}
+
+export function applyColumnSpanDefDefaults(
+  columnSpan: ColumnSpan | undefined,
+  columnDef: LeafColumn,
+): LeafColumn {
+  if (columnSpan === undefined) {
+    return columnDef;
+  }
+  if (columnSpan.field === columnDef.field) {
+    return Object.assign({}, columnDef, columnSpan);
+  }
+  return Object.assign(
+    {},
+    columnDefDefaults,
+    { ancestors: [], pinned: columnDef.pinned },
+    columnSpan,
+  );
 }
 
 // TODO: Expose API to consumers
@@ -591,7 +605,7 @@ export function getGridCanvasWidth(
   return endBoundary ? `${endBoundary}px` : "auto";
 }
 
-export function getColumnEndBoundary(
+function getColumnEndBoundary(
   colIdx: number,
   leafColumns: ColumnDefWithDefaults[],
   columnGap: number,
@@ -611,7 +625,7 @@ export function getColumnEndBoundary(
 
 // Returns null if one of the leaf columns before colIdx
 // does not have an integer width
-export function getColumnStartBoundary(
+function getColumnStartBoundary(
   colIdx: number,
   leafColumns: ColumnDefWithDefaults[],
   columnGap: number,
@@ -632,6 +646,21 @@ export function getColumnStartBoundary(
   }
 
   return totalColumnWidths + colIdx * columnGap;
+}
+
+export function getPinnedColumnsOffset(
+  leafColumns: LeafColumn[],
+  columnGap: number,
+): number {
+  if (leafColumns.length === 0) {
+    return 0;
+  }
+
+  const columnWidths = leafColumns.reduce(
+    (widths, column) => widths + column.width,
+    0,
+  );
+  return columnGap * leafColumns.length + columnWidths;
 }
 
 function validateProps<TTemporaryGeneric>(props: TTemporaryGeneric) {}

@@ -17,6 +17,7 @@
 
 .cantal-header-viewport,
 .cantal-body-viewport {
+  background-color: var(--background-color);
   position: relative; /* Required for pinning columns */
 }
 
@@ -136,7 +137,7 @@
 
 [data-theme="dark"] {
   --background-color: #555;
-  --border-color: #555;
+  --border-color: #666;
   --header-background-color: #333;
   --header-color: #ddd;
   --cell-background-color: #222;

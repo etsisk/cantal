@@ -13,8 +13,8 @@ import {
 } from "react";
 import { Cell } from "./Cell";
 import {
-  getColumnEndBoundary,
-  getColumnStartBoundary,
+  applyColumnSpanDefDefaults,
+  getPinnedColumnsOffset,
   type ColumnDefWithDefaults,
   type DataRow,
   type HandleKeyDownArgs,
@@ -30,10 +30,12 @@ export interface Cell {
 }
 
 type Direction = "left" | "right" | "up" | "down";
+export type ColumnSpan = { field: string; from: number; to: number };
 
 interface BodyProps {
   canvasWidth: string;
   columnGap: number;
+  columnSpans?: string;
   containerHeight: number;
   data: any[];
   focusedCell?: Cell | null;
@@ -75,6 +77,7 @@ interface BodyProps {
 export function Body({
   canvasWidth,
   columnGap,
+  columnSpans,
   containerHeight,
   data,
   focusedCell = null,
@@ -136,7 +139,6 @@ export function Body({
     if (!focusedCell || !viewportRef.current) {
       return;
     }
-    // TODO: Are there edge cases with virtualization
     const columnDef = leafColumns[focusedCell?.columnIndex];
     if (columnDef === undefined) {
       return;
@@ -147,6 +149,9 @@ export function Body({
       columnGap,
     );
     // NOTE: Doesn't acccount for non-pixel based widths (e.g. '1fr')
+    // QUESTION: Maybe check for from index to make sure start of column span
+    // is scrolled into view?
+    // It's not clear what the correct behavior should be
     const cellInlineStart = leafColumns.reduce((offset, def, i) => {
       if (i < focusedCell.columnIndex) {
         return offset + def.width + rowGap;
@@ -158,10 +163,12 @@ export function Body({
       rowHeight * focusedCell.rowIndex + focusedCell.rowIndex * rowGap;
     const cellBlockEnd = cellBlockStart + rowHeight;
     // TODO: Consider extracting scroll logic into reusable function
-    if (viewportRect.left !== null && cellInlineStart < viewportRect.left) {
-      viewportRef.current.scrollLeft = cellInlineStart;
-    } else if (cellInlineEnd > viewportRect.right) {
-      viewportRef.current.scrollLeft = cellInlineEnd - viewportRect.width;
+    if (cellInlineStart < viewportRect.left) {
+      viewportRef.current.scrollLeft =
+        cellInlineStart - viewportRect.leftOffset;
+    } else if (cellInlineEnd > viewportRect.right - viewportRect.rightOffset) {
+      viewportRef.current.scrollLeft =
+        cellInlineEnd - viewportRect.width + viewportRect.rightOffset;
     }
 
     if (cellBlockStart < viewportRect.top) {
@@ -169,7 +176,8 @@ export function Body({
     } else if (cellBlockEnd > viewportRect.bottom) {
       viewportRef.current.scrollTop = cellBlockEnd - viewportRect.height;
     }
-  }, [columnGap, focusedCell, leafColumns]);
+    // NOTE: Woof
+  }, [columnGap, focusedCell, leafColumns.map((lc) => lc.field).join("-")]);
 
   // QUESTION: use useRef instead?
   useEffect(() => {
@@ -228,56 +236,32 @@ export function Body({
       (def) => def.pinned === "start",
     );
     const pinnedEndColumns = leafColumns.filter((def) => def.pinned === "end");
+    // TODO: Account for spanned cells
+    // Column spans in particular don't seem to jump to the from cell when virtualized
+    const startBoundaryOffset = getPinnedColumnsOffset(
+      pinnedStartColumns,
+      columnGap,
+    );
+    const endBoundaryOffset = getPinnedColumnsOffset(
+      pinnedEndColumns,
+      columnGap,
+    );
     const startBoundary = pinnedStartColumns.length
-      ? getColumnStartBoundary(
-          pinnedStartColumns.length,
-          leafColumns,
-          columnGap,
-        )
+      ? startBoundaryOffset + scrollLeft
       : scrollLeft;
     const endBoundary = pinnedEndColumns.length
-      ? scrollLeft +
-        offsetWidth -
-        getColumnEndBoundary(
-          pinnedEndColumns.length - leafColumns.length,
-          leafColumns,
-          columnGap,
-        )
+      ? scrollLeft + offsetWidth - endBoundaryOffset
       : scrollLeft + offsetWidth;
-    if (startBoundary !== null) {
-      const bRect = viewport.getBoundingClientRect();
-      console.log({
-        hand: {
-          bottom: scrollTop + offsetHeight,
-          height: offsetHeight,
-          left: startBoundary,
-          right: endBoundary,
-          top: scrollTop,
-          width: endBoundary - startBoundary,
-        },
-        dom: {
-          ...bRect,
-          left: scrollLeft,
-          right: bRect.width + scrollLeft,
-        },
-      });
-      // TODO: Consider using getBoundingClientRect as a fallback
-      return {
-        bottom: scrollTop + offsetHeight,
-        height: offsetHeight,
-        left: startBoundary,
-        right: endBoundary,
-        top: scrollTop,
-        width: endBoundary - startBoundary,
-      };
-    }
+    const bRect = viewport.getBoundingClientRect();
     return {
       bottom: scrollTop + offsetHeight,
       height: offsetHeight,
-      left: startBoundary, // ?
+      left: startBoundary,
+      leftOffset: startBoundaryOffset,
       right: endBoundary,
+      rightOffset: endBoundaryOffset,
       top: scrollTop,
-      width: endBoundary - startBoundary, // ?
+      width: bRect.width,
     };
   }
 
@@ -306,15 +290,17 @@ export function Body({
             Math.max(pinnedEndLeafColumns.length - 1, 0) * columnGap),
       );
       const columnEndBoundaries = getColumnEndBoundaries(endBoundary);
-
+      const startIndex = columnEndBoundaries.findIndex(
+        (b) => b > startBoundary,
+      );
       const firstVisibleColumn = Math.max(
-        (columnEndBoundaries.findIndex((b) => b > startBoundary) ?? 0) -
-          overscanColumns,
+        (startIndex === -1 ? 0 : startIndex) - overscanColumns,
         0,
       );
+      const endIndex = columnEndBoundaries.findIndex((b) => b > endBoundary);
       const lastVisibleColumn =
         Math.min(
-          (columnEndBoundaries.findIndex((b) => b > endBoundary) ?? 0) +
+          (endIndex === -1 ? leafColumns.length - 1 : endIndex) +
             overscanColumns,
           leafColumns.length - 1,
         ) + 1;
@@ -438,54 +424,53 @@ export function Body({
     if (!focusedCell) {
       return false;
     }
+    const columnDef = leafColumns[focusedCell.columnIndex];
+    if (!columnDef) {
+      return false;
+    }
     if (dir === "up") {
+      const rowIndex = getRowIndex(
+        focusedCell.rowIndex - 1,
+        focusedCell.columnIndex,
+        data,
+        columnDef,
+        columnSpans,
+      );
       if (focusedCell.rowIndex === 0) {
         return false;
       }
-      // First check if rowSpans exist for column
-      const hasSpans =
-        !!rowSpans?.[focusedCell.rowIndex]?.[focusedCell.columnIndex];
-      let rowOffset = 1;
-      if (hasSpans) {
-        while (focusedCell.rowIndex - rowOffset > 0) {
-          const row = rowSpans[focusedCell.rowIndex - rowOffset];
-          if (row) {
-            const span = row[focusedCell.columnIndex];
-            if (span === 1) {
-              break;
-            }
-            rowOffset += 1;
-          } else {
-            return false;
-          }
-        }
-      }
-      const offset = hasSpans ? rowOffset : 1;
       const newFocusedCell = {
         ...focusedCell,
-        rowIndex: focusedCell.rowIndex - offset,
+        rowIndex: rowIndex,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
       setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "down") {
-      if (focusedCell.rowIndex >= data.length - 1) {
+      const rowIndex = getLastRowIndex(
+        focusedCell.rowIndex,
+        focusedCell.columnIndex,
+        data,
+        columnDef,
+        columnSpans,
+      );
+      if (rowIndex >= data.length - 1) {
         return false;
       }
 
-      const offset =
-        rowSpans?.[focusedCell.rowIndex]?.[focusedCell.columnIndex] ?? 1;
-      if (focusedCell.rowIndex + offset > data.length - 1) {
-        return false;
-      }
       const newFocusedCell = {
         ...focusedCell,
-        rowIndex: focusedCell.rowIndex + offset,
+        rowIndex: rowIndex + 1,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
       setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "left") {
+      const columnIndex = getColumnIndex(
+        focusedCell.columnIndex - 1,
+        data[focusedCell.rowIndex],
+        columnSpans,
+      );
       if (focusedCell.columnIndex === 0) {
         if (wrap) {
           if (focusedCell.rowIndex === 0) {
@@ -494,8 +479,20 @@ export function Body({
 
           const newFocusedCell = {
             ...focusedCell,
-            columnIndex: leafColumns.length - 1,
-            rowIndex: focusedCell.rowIndex - 1,
+            columnIndex: getColumnIndex(
+              // QUESTION: Account for columns pinned on the right side?
+              leafColumns.length - 1,
+              data[focusedCell.rowIndex - 1],
+              columnSpans,
+            ),
+            // rowIndex: focusedCell.rowIndex - 1,
+            rowIndex: getRowIndex(
+              focusedCell.rowIndex - 1,
+              columnIndex,
+              data,
+              columnDef,
+              columnSpans,
+            ),
           };
 
           handleFocusedCellChange(newFocusedCell, e);
@@ -508,16 +505,23 @@ export function Body({
 
       const newFocusedCell = {
         ...focusedCell,
-        columnIndex: focusedCell.columnIndex - 1,
+        columnIndex,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
       setSelectionRangeToFocusedCell(newFocusedCell, e);
     } else if (dir === "right") {
-      if (focusedCell.columnIndex >= leafColumns.length - 1) {
+      const columnIndex = getColumnIndex(
+        focusedCell.columnIndex,
+        data[focusedCell.rowIndex],
+        columnSpans,
+        "end",
+      );
+
+      if (columnIndex + 1 > leafColumns.length - 1) {
         if (wrap) {
           if (focusedCell.rowIndex >= data.length - 1) {
-            // Remove focus from the grid
+            // TODO: Remove focus from the grid
             // setKeepFocus(false);
             return false;
           }
@@ -535,9 +539,12 @@ export function Body({
         }
       }
 
+      if (columnIndex + 1 > leafColumns.length - 1) {
+        return false;
+      }
       const newFocusedCell = {
         ...focusedCell,
-        columnIndex: focusedCell.columnIndex + 1,
+        columnIndex: columnIndex + 1,
       };
 
       handleFocusedCellChange(newFocusedCell, e);
@@ -560,14 +567,6 @@ export function Body({
         getSelectionRangeWithSpans(
           range(focusedCell.rowIndex, focusedCell.columnIndex),
         ),
-        // getSelectionRangeWithMergedCells(
-        //   new Range(focusedCell.rowIdx, focusedCell.colIdx),
-        //   rangeSelectionBehavior,
-        //   leafColumns,
-        //   data,
-        //   hasGridBodyAreas,
-        //   columnSpansByRow
-        // ),
         point,
         e,
       );
@@ -575,39 +574,37 @@ export function Body({
   }
 
   function getSelectionRangeWithSpans(selectedRange: Range): Range[] {
-    if (!rowSpans?.[selectedRange.fromRow]?.[selectedRange.fromColumn]) {
+    const columnDef = leafColumns[selectedRange.fromColumn];
+    if (!columnDef) {
       return [selectedRange];
     }
-    const fromRowOffset = findRowSpanStartOffset({
-      columnIndex: selectedRange.fromColumn,
-      rowIndex: selectedRange.fromRow,
-    });
-    let startColumn = selectedRange.fromColumn;
-    let endColumn = selectedRange.toColumn;
-    let startRow = selectedRange.fromRow - fromRowOffset;
-    let endRow = selectedRange.toRow;
 
+    const startColumn = getColumnIndex(
+      selectedRange.fromColumn,
+      data[selectedRange.fromRow],
+      columnSpans,
+    );
+    const endColumn = getColumnIndex(
+      selectedRange.toColumn,
+      data[selectedRange.fromRow],
+      columnSpans,
+      "end",
+    );
+    const startRow = getRowIndex(
+      selectedRange.fromRow,
+      selectedRange.fromColumn,
+      data,
+      columnDef,
+      columnSpans,
+    );
+    const endRow = getLastRowIndex(
+      selectedRange.toRow,
+      selectedRange.fromColumn,
+      data,
+      columnDef,
+      columnSpans,
+    );
     return [range(startRow, startColumn, endRow, endColumn)];
-  }
-
-  function findRowSpanStartOffset(cell: Cell): number {
-    let rowOffset = 1;
-    if (!cell || !rowSpans) {
-      return rowOffset - 1;
-    }
-    while (cell.rowIndex - rowOffset > 0) {
-      const row = rowSpans[cell.rowIndex - rowOffset];
-      if (row) {
-        const span = row[cell.columnIndex];
-        if (span === 1) {
-          break;
-        }
-        rowOffset += 1;
-      } else {
-        break;
-      }
-    }
-    return rowOffset - 1;
   }
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -758,10 +755,21 @@ export function Body({
     ? leafColumns[focusedCell.columnIndex]
     : undefined;
 
+  // QUESTION: If we didn't limit span matrices to visible columns/rows,
+  // would it be better than calculating individual cell bounds?
+  // Currently, we calculate it for:
+  // - each rendered cell
+  // - navigate cell action
+  // - selection range when following focus
+  // QUESTION: Could we get away with limiting span matrices to
+  // focusedCell indices?
+  const colSpans = columnSpans
+    ? getColumnSpans(columnSpans, data, visibleColumns, visibleRows)
+    : undefined;
   const rowSpans = leafColumns
     .slice(visibleColumnStart, visibleColumnEnd + 1)
     .some((lc) => lc.rowSpanning)
-    ? getRowSpans(leafColumns, data, visibleColumns, visibleRows)
+    ? getRowSpans(leafColumns, data, visibleColumns, visibleRows, colSpans)
     : undefined;
 
   return (
@@ -861,67 +869,116 @@ export function Body({
                     const row = data[rowIndex];
                     return pinnedStartLeafColumns.map(
                       (columnDef, columnIndex) => {
+                        let colDef = columnDef;
+                        const relativeColumnIndex =
+                          (virtual === true || virtual === "columns") &&
+                          visibleColumns[0]
+                            ? columnIndex - visibleColumns[0]
+                            : columnIndex;
                         const relativeRowIndex =
                           (virtual === true || virtual === "rows") &&
                           visibleRows[0]
                             ? rowIndex - visibleRows[0]
                             : rowIndex;
-                        if (
-                          columnDef.rowSpanning &&
-                          visibleRows[relativeRowIndex - 1] !== undefined &&
-                          columnDef.rowSpanComparator(
-                            columnDef.valueRenderer({
-                              columnDef,
-                              data: data[rowIndex - 1],
-                              value: data[rowIndex - 1][columnDef.field],
-                            }),
-                            columnDef.valueRenderer({
-                              columnDef,
-                              data: row,
-                              value: row[columnDef.field],
-                            }),
-                          )
-                        ) {
-                          return null;
+                        let startRowIndex = rowIndex;
+                        let endRowIndex = rowIndex;
+                        if (columnDef.rowSpanning) {
+                          if (
+                            relativeRowIndex !== 0 &&
+                            isRowSpanned(columnDef, row, data[rowIndex - 1]) &&
+                            !isColumnSpanned(
+                              data[rowIndex - 1],
+                              columnSpans,
+                              columnIndex,
+                            )
+                          ) {
+                            return null;
+                          }
+                          startRowIndex = getRowIndex(
+                            rowIndex,
+                            columnIndex,
+                            data,
+                            columnDef,
+                            columnSpans,
+                          );
+                          endRowIndex = getLastRowIndex(
+                            rowIndex,
+                            columnIndex,
+                            data,
+                            columnDef,
+                            columnSpans,
+                          );
                         }
-                        const rowSpan = rowSpans?.[rowIndex]?.[columnIndex];
-                        const isFocused =
-                          rowSpan && rowSpan > 1
-                            ? focusedCell?.columnIndex === columnIndex &&
-                              focusedCell?.rowIndex >= rowIndex &&
-                              focusedCell?.rowIndex < rowIndex + rowSpan
-                            : focusedCell?.rowIndex === rowIndex &&
-                              focusedCell?.columnIndex === columnIndex;
+                        let startColumnIndex = columnIndex;
+                        let endColumnIndex = columnIndex;
+                        if (columnSpans) {
+                          if (
+                            columnIndex !== 0 &&
+                            isColumnSpanned(row, columnSpans, columnIndex)
+                          ) {
+                            return null;
+                          }
+                          startColumnIndex = getColumnIndex(
+                            columnIndex,
+                            row,
+                            columnSpans,
+                          );
+                          endColumnIndex = getColumnIndex(
+                            columnIndex,
+                            row,
+                            columnSpans,
+                            "end",
+                          );
+                          colDef = applyColumnSpanDefDefaults(
+                            getColumnSpan(
+                              row[columnSpans],
+                              columnIndex,
+                              "from",
+                            ),
+                            columnDef,
+                          );
+                        }
+                        const isFocused = isCellFocused(
+                          focusedCell,
+                          startRowIndex,
+                          startColumnIndex,
+                          endRowIndex,
+                          endColumnIndex,
+                        );
                         return (
                           <Cell
                             ariaLabel={
-                              typeof columnDef.ariaCellLabel === "function"
-                                ? columnDef.ariaCellLabel({
+                              typeof colDef.ariaCellLabel === "function"
+                                ? colDef.ariaCellLabel({
                                     columnIndex,
                                     data: row,
-                                    def: columnDef,
+                                    def: colDef,
                                     rowIndex,
-                                    value: row[columnDef.field],
+                                    value: row[colDef.field],
                                   })
-                                : columnDef.ariaCellLabel
+                                : colDef.ariaCellLabel
                             }
-                            columnDef={columnDef}
+                            columnDef={colDef}
                             columnIndex={columnIndex}
+                            columnIndexRelative={relativeColumnIndex}
+                            endColumnIndex={endColumnIndex}
+                            endRowIndex={endRowIndex}
                             isFocused={isFocused}
                             key={`${rowIndex}-${columnIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
-                            rowIndexRelative={relativeRowIndex}
-                            rowSpan={rowSpan}
                             selected={rangesContainCell(selectedRanges, {
                               columnIndex,
                               rowIndex,
                             })}
+                            startColumnIndex={startColumnIndex}
+                            startRowIndex={startRowIndex}
+                            virtualRowIndex={relativeRowIndex}
                           >
-                            {columnDef.valueRenderer({
-                              columnDef,
+                            {colDef.valueRenderer({
+                              columnDef: colDef,
                               data: row,
-                              value: row[columnDef.field],
+                              value: row[colDef.field],
                             })}
                           </Cell>
                         );
@@ -939,70 +996,115 @@ export function Body({
                       if (!columnDef) {
                         return null;
                       }
+                      let colDef = columnDef;
+                      const relativeColumnIndex =
+                        (virtual === true || virtual === "columns") &&
+                        visibleColumns[0]
+                          ? columnIndex - visibleColumns[0]
+                          : columnIndex;
                       const relativeRowIndex =
                         (virtual === true || virtual === "rows") &&
                         visibleRows[0]
                           ? rowIndex - visibleRows[0]
                           : rowIndex;
-                      if (
-                        columnDef.rowSpanning &&
-                        visibleRows[relativeRowIndex - 1] !== undefined &&
-                        columnDef.rowSpanComparator(
-                          columnDef.valueRenderer({
-                            columnDef,
-                            data: data[rowIndex - 1],
-                            value: data[rowIndex - 1][columnDef.field],
-                          }),
-                          columnDef.valueRenderer({
-                            columnDef,
-                            data: row,
-                            value: row[columnDef.field],
-                          }),
-                        )
-                      ) {
-                        return null;
-                      }
                       // TODO: Can we avoid 'colIndex' calculation?
                       const colIndex =
                         columnIndex + pinnedStartLeafColumns.length;
-                      const rowSpan = rowSpans?.[rowIndex]?.[colIndex];
-                      const isFocused =
-                        rowSpan && rowSpan > 1
-                          ? focusedCell?.columnIndex === colIndex &&
-                            focusedCell?.rowIndex >= rowIndex &&
-                            focusedCell?.rowIndex < rowIndex + rowSpan
-                          : focusedCell?.rowIndex === rowIndex &&
-                            focusedCell?.columnIndex === colIndex;
+                      let startRowIndex = rowIndex;
+                      let endRowIndex = rowIndex;
+                      if (columnDef.rowSpanning) {
+                        if (
+                          relativeRowIndex !== 0 &&
+                          isRowSpanned(columnDef, row, data[rowIndex - 1]) &&
+                          !isColumnSpanned(
+                            data[rowIndex - 1],
+                            columnSpans,
+                            colIndex,
+                          )
+                        ) {
+                          return null;
+                        }
+                        startRowIndex = getRowIndex(
+                          rowIndex,
+                          colIndex,
+                          data,
+                          columnDef,
+                          columnSpans,
+                        );
+                        endRowIndex = getLastRowIndex(
+                          rowIndex,
+                          colIndex,
+                          data,
+                          columnDef,
+                          columnSpans,
+                        );
+                      }
+                      let startColumnIndex = colIndex;
+                      let endColumnIndex = colIndex;
+                      if (columnSpans) {
+                        if (
+                          relativeColumnIndex !== 0 &&
+                          isColumnSpanned(row, columnSpans, colIndex)
+                        ) {
+                          return null;
+                        }
+                        startColumnIndex = getColumnIndex(
+                          colIndex,
+                          row,
+                          columnSpans,
+                        );
+                        endColumnIndex = getColumnIndex(
+                          colIndex,
+                          row,
+                          columnSpans,
+                          "end",
+                        );
+                        colDef = applyColumnSpanDefDefaults(
+                          getColumnSpan(row[columnSpans], colIndex, "from"),
+                          columnDef,
+                        );
+                      }
+                      const isFocused = isCellFocused(
+                        focusedCell,
+                        startRowIndex,
+                        startColumnIndex,
+                        endRowIndex,
+                        endColumnIndex,
+                      );
                       return (
                         <Cell
                           ariaLabel={
-                            typeof columnDef.ariaCellLabel === "function"
-                              ? columnDef.ariaCellLabel({
-                                  columnIndex,
+                            typeof colDef.ariaCellLabel === "function"
+                              ? colDef.ariaCellLabel({
+                                  columnIndex: colIndex,
                                   data: row,
-                                  def: columnDef,
+                                  def: colDef,
                                   rowIndex,
-                                  value: row[columnDef.field],
+                                  value: row[colDef.field],
                                 })
-                              : columnDef.ariaCellLabel
+                              : colDef.ariaCellLabel
                           }
-                          columnDef={columnDef}
+                          columnDef={colDef}
                           columnIndex={colIndex}
+                          columnIndexRelative={relativeColumnIndex}
+                          endColumnIndex={endColumnIndex}
+                          endRowIndex={endRowIndex}
                           isFocused={isFocused}
                           key={`${rowIndex}-${colIndex}`}
                           position={positions.get(columnDef)}
                           rowIndex={rowIndex}
-                          rowIndexRelative={relativeRowIndex}
-                          rowSpan={rowSpan}
                           selected={rangesContainCell(selectedRanges, {
-                            columnIndex,
+                            columnIndex: colIndex,
                             rowIndex,
                           })}
+                          startColumnIndex={startColumnIndex}
+                          startRowIndex={startRowIndex}
+                          virtualRowIndex={relativeRowIndex}
                         >
-                          {columnDef.valueRenderer({
-                            columnDef,
+                          {colDef.valueRenderer({
+                            columnDef: colDef,
                             data: row,
-                            value: row[columnDef.field],
+                            value: row[colDef.field],
                           })}
                         </Cell>
                       );
@@ -1015,72 +1117,117 @@ export function Body({
                     const row = data[rowIndex];
                     return pinnedEndLeafColumns.map(
                       (columnDef, columnIndex) => {
+                        let colDef = columnDef;
+                        const relativeColumnIndex =
+                          (virtual === true || virtual === "columns") &&
+                          visibleColumns[0]
+                            ? columnIndex - visibleColumns[0]
+                            : columnIndex;
                         const relativeRowIndex =
                           (virtual === true || virtual === "rows") &&
                           visibleRows[0]
                             ? rowIndex - visibleRows[0]
                             : rowIndex;
-                        if (
-                          columnDef.rowSpanning &&
-                          visibleRows[relativeRowIndex - 1] !== undefined &&
-                          columnDef.rowSpanComparator(
-                            columnDef.valueRenderer({
-                              columnDef,
-                              data: data[rowIndex - 1],
-                              value: data[rowIndex - 1][columnDef.field],
-                            }),
-                            columnDef.valueRenderer({
-                              columnDef,
-                              data: row,
-                              value: row[columnDef.field],
-                            }),
-                          )
-                        ) {
-                          return null;
-                        }
                         // TODO: Can we avoid 'colIndex' calculation?
                         const colIndex =
                           columnIndex +
                           pinnedStartLeafColumns.length +
                           unpinnedLeafColumns.length;
-                        const rowSpan = rowSpans?.[rowIndex]?.[colIndex];
-                        const isFocused =
-                          rowSpan && rowSpan > 1
-                            ? focusedCell?.columnIndex === colIndex &&
-                              focusedCell?.rowIndex >= rowIndex &&
-                              focusedCell?.rowIndex < rowIndex + rowSpan
-                            : focusedCell?.rowIndex === rowIndex &&
-                              focusedCell?.columnIndex === colIndex;
+                        let startRowIndex = rowIndex;
+                        let endRowIndex = rowIndex;
+                        if (columnDef.rowSpanning) {
+                          if (
+                            relativeRowIndex !== 0 &&
+                            isRowSpanned(columnDef, row, data[rowIndex - 1]) &&
+                            !isColumnSpanned(
+                              data[rowIndex - 1],
+                              columnSpans,
+                              colIndex,
+                            )
+                          ) {
+                            return null;
+                          }
+                          startRowIndex = getRowIndex(
+                            rowIndex,
+                            colIndex,
+                            data,
+                            columnDef,
+                            columnSpans,
+                          );
+                          endRowIndex = getLastRowIndex(
+                            rowIndex,
+                            colIndex,
+                            data,
+                            columnDef,
+                            columnSpans,
+                          );
+                        }
+                        let startColumnIndex = colIndex;
+                        let endColumnIndex = colIndex;
+                        if (columnSpans) {
+                          if (
+                            columnIndex !== 0 &&
+                            isColumnSpanned(row, columnSpans, colIndex)
+                          ) {
+                            return null;
+                          }
+                          startColumnIndex = getColumnIndex(
+                            colIndex,
+                            row,
+                            columnSpans,
+                          );
+                          endColumnIndex = getColumnIndex(
+                            colIndex,
+                            row,
+                            columnSpans,
+                            "end",
+                          );
+                          colDef = applyColumnSpanDefDefaults(
+                            getColumnSpan(row[columnSpans], colIndex, "from"),
+                            columnDef,
+                          );
+                        }
+                        const isFocused = isCellFocused(
+                          focusedCell,
+                          startRowIndex,
+                          startColumnIndex,
+                          endRowIndex,
+                          endColumnIndex,
+                        );
                         return (
                           <Cell
                             ariaLabel={
-                              typeof columnDef.ariaCellLabel === "function"
-                                ? columnDef.ariaCellLabel({
+                              typeof colDef.ariaCellLabel === "function"
+                                ? colDef.ariaCellLabel({
                                     columnIndex,
                                     data: row,
                                     def: columnDef,
                                     rowIndex,
                                     value: row[columnDef.field],
                                   })
-                                : columnDef.ariaCellLabel
+                                : colDef.ariaCellLabel
                             }
-                            columnDef={columnDef}
+                            columnDef={colDef}
                             columnIndex={colIndex}
+                            columnIndexRelative={relativeColumnIndex}
+                            endColumnIndex={endColumnIndex}
+                            endRowIndex={endRowIndex}
                             isFocused={isFocused}
                             key={`${rowIndex}-${colIndex}`}
                             position={positions.get(columnDef)}
                             rowIndex={rowIndex}
-                            rowIndexRelative={relativeRowIndex}
-                            rowSpan={rowSpan}
                             selected={rangesContainCell(selectedRanges, {
-                              columnIndex,
+                              columnIndex: colIndex,
                               rowIndex,
                             })}
+                            startColumnIndex={startColumnIndex}
+                            startRowIndex={startRowIndex}
+                            virtualRowIndex={relativeRowIndex}
                           >
-                            {columnDef.valueRenderer({
-                              columnDef,
+                            {colDef.valueRenderer({
+                              columnDef: colDef,
                               data: row,
-                              value: row[columnDef.field],
+                              value: row[colDef.field],
                             })}
                           </Cell>
                         );
@@ -1099,66 +1246,112 @@ export function Body({
                   if (!row || !columnDef) {
                     return null;
                   }
+                  // TODO: find a better name for `columnDefForSpan`
+                  let columnDefForSpan = columnDef;
+                  const relativeColumnIndex =
+                    (virtual === true || virtual === "columns") &&
+                    visibleColumns[0]
+                      ? columnIndex - visibleColumns[0]
+                      : columnIndex;
                   const relativeRowIndex =
                     (virtual === true || virtual === "rows") && visibleRows[0]
                       ? rowIndex - visibleRows[0]
                       : rowIndex;
-                  if (
-                    columnDef.rowSpanning &&
-                    visibleRows[relativeRowIndex - 1] !== undefined &&
-                    columnDef.rowSpanComparator(
-                      columnDef.valueRenderer({
-                        columnDef,
-                        data: data[rowIndex - 1],
-                        value: data[rowIndex - 1][columnDef.field],
-                      }),
-                      columnDef.valueRenderer({
-                        columnDef,
-                        data: row,
-                        value: row[columnDef.field],
-                      }),
-                    )
-                  ) {
-                    return null;
+                  let startRowIndex = rowIndex;
+                  let endRowIndex = rowIndex;
+                  if (columnDef.rowSpanning) {
+                    if (
+                      relativeRowIndex !== 0 &&
+                      isRowSpanned(columnDef, row, data[rowIndex - 1]) &&
+                      !isColumnSpanned(
+                        data[rowIndex - 1],
+                        columnSpans,
+                        columnIndex,
+                      )
+                    ) {
+                      return null;
+                    }
+                    startRowIndex = getRowIndex(
+                      rowIndex,
+                      columnIndex,
+                      data,
+                      columnDef,
+                      columnSpans,
+                    );
+                    endRowIndex = getLastRowIndex(
+                      rowIndex,
+                      columnIndex,
+                      data,
+                      columnDef,
+                      columnSpans,
+                    );
                   }
-                  const rowSpan = rowSpans?.[rowIndex]?.[columnIndex];
-                  const isFocused =
-                    rowSpan && rowSpan > 1
-                      ? focusedCell?.columnIndex === columnIndex &&
-                        focusedCell?.rowIndex >= rowIndex &&
-                        focusedCell?.rowIndex < rowIndex + rowSpan
-                      : focusedCell?.rowIndex === rowIndex &&
-                        focusedCell?.columnIndex === columnIndex;
+                  let startColumnIndex = columnIndex;
+                  let endColumnIndex = columnIndex;
+                  if (columnSpans) {
+                    if (
+                      relativeColumnIndex !== 0 &&
+                      isColumnSpanned(row, columnSpans, columnIndex)
+                    ) {
+                      return null;
+                    }
+                    startColumnIndex = getColumnIndex(
+                      columnIndex,
+                      row,
+                      columnSpans,
+                    );
+                    endColumnIndex = getColumnIndex(
+                      columnIndex,
+                      row,
+                      columnSpans,
+                      "end",
+                    );
+                    columnDefForSpan = applyColumnSpanDefDefaults(
+                      getColumnSpan(row[columnSpans], columnIndex, "from"),
+                      columnDef,
+                    );
+                  }
+                  const isFocused = isCellFocused(
+                    focusedCell,
+                    startRowIndex,
+                    startColumnIndex,
+                    endRowIndex,
+                    endColumnIndex,
+                  );
                   return (
                     <Cell
                       ariaLabel={
-                        typeof columnDef.ariaCellLabel === "function"
-                          ? columnDef.ariaCellLabel({
+                        typeof columnDefForSpan.ariaCellLabel === "function"
+                          ? columnDefForSpan.ariaCellLabel({
                               columnIndex,
                               data: row,
-                              def: columnDef,
+                              def: columnDefForSpan,
                               rowIndex,
-                              value: row[columnDef.field],
+                              value: row[columnDefForSpan.field],
                             })
-                          : columnDef.ariaCellLabel
+                          : (columnDef.ariaCellLabel as string)
                       }
-                      columnDef={columnDef}
+                      columnDef={columnDefForSpan}
                       columnIndex={columnIndex}
-                      key={`${rowIndex}-${columnIndex}`}
+                      columnIndexRelative={relativeColumnIndex}
+                      endColumnIndex={endColumnIndex}
+                      endRowIndex={endRowIndex}
                       isFocused={isFocused}
+                      key={`${rowIndex}-${columnIndex}`}
                       position={positions.get(columnDef)}
                       rowIndex={rowIndex}
-                      rowIndexRelative={relativeRowIndex}
-                      rowSpan={rowSpan}
                       selected={rangesContainCell(selectedRanges, {
-                        columnIndex,
-                        rowIndex,
+                        columnIndex: startColumnIndex,
+                        rowIndex: startRowIndex,
                       })}
+                      startColumnIndex={startColumnIndex}
+                      startRowIndex={startRowIndex}
+                      virtualRowIndex={relativeRowIndex}
                     >
-                      {columnDef.valueRenderer({
-                        columnDef,
+                      {columnDefForSpan.valueRenderer({
+                        columnDef: columnDefForSpan,
                         data: row,
-                        value: row[columnDef.field],
+                        value: row[columnDefForSpan.field],
                       })}
                     </Cell>
                   );
@@ -1479,6 +1672,7 @@ function getRowSpans(
   data: DataRow[],
   visibleColumns: number[],
   visibleRows: number[],
+  colSpans: { [key: string]: { [key: string]: number } } | undefined,
 ): { [key: string]: { [key: string]: number } } {
   const spans: { [key: string]: { [key: string]: number } } = {};
 
@@ -1499,41 +1693,305 @@ function getRowSpans(
     for (let rowIndex of visibleRows) {
       spans[rowIndex] ??= {};
 
-      if (!rowSpanning) {
+      const spannedCell = colSpans?.[rowIndex]?.[columnIndex] ?? 0;
+      if (spannedCell > 0) {
         spans[rowIndex][columnIndex] = 1;
-      } else {
-        let span = 1;
-        while (rowIndex + span <= endIndex + 1) {
-          const currentRow = data[rowIndex];
-          const nextRow = data[rowIndex + span];
-          if (
-            currentRow &&
-            nextRow &&
-            rowSpanComparator(
-              colDef.valueRenderer({
-                columnDef: colDef,
-                data: currentRow,
-                value: currentRow[field],
-              }),
-              colDef.valueRenderer({
-                columnDef: colDef,
-                data: nextRow,
-                value: nextRow[field],
-              }),
-            )
-          ) {
-            if (rowIndex + span + 1 > endIndex + 1) {
-              spans[rowIndex][columnIndex] = span;
-              break;
-            }
-            span += 1;
-          } else {
+        continue;
+      }
+
+      let span = 1;
+      while (rowIndex + span <= endIndex + 1) {
+        const currentRow = data[rowIndex];
+        const nextRow = data[rowIndex + span];
+        if (
+          currentRow &&
+          nextRow &&
+          rowSpanComparator(
+            colDef.valueRenderer({
+              columnDef: colDef,
+              data: currentRow,
+              value: currentRow[field],
+            }),
+            colDef.valueRenderer({
+              columnDef: colDef,
+              data: nextRow,
+              value: nextRow[field],
+            }),
+          ) &&
+          [undefined, 0].includes(colSpans?.[rowIndex + span]?.[columnIndex])
+        ) {
+          if (rowIndex + span > endIndex) {
             spans[rowIndex][columnIndex] = span;
             break;
           }
+          span += 1;
+        } else {
+          spans[rowIndex][columnIndex] = span;
+          break;
         }
       }
     }
   }
   return spans;
+}
+
+function getColumnSpans(
+  key: string,
+  data: DataRow[],
+  visibleColumns: number[],
+  visibleRows: number[],
+) {
+  const spans: { [key: string]: { [key: string]: number } } = {};
+  for (let rowIndex of visibleRows) {
+    const row = data[rowIndex];
+    if (!row) {
+      continue;
+    }
+    const endIndex = visibleColumns.at(-1);
+    if (!endIndex) {
+      continue;
+    }
+
+    const columnSpans = row[key];
+    if (!isColumnSpans(columnSpans)) {
+      continue;
+    }
+    for (let columnIndex of visibleColumns) {
+      spans[rowIndex] ??= {};
+      const columnSpan = columnSpans.find(
+        (cs: { field: string; from: number; to: number }) =>
+          cs.from <= columnIndex && columnIndex <= cs.to,
+      );
+      if (columnSpan !== undefined) {
+        spans[rowIndex][columnIndex] = columnSpan.to - columnIndex;
+      } else {
+        spans[rowIndex][columnIndex] = 0;
+      }
+    }
+  }
+  return spans;
+}
+// function getColumnSpanz(
+// leafColumns: LeafColumn[],
+// data: DataRow[],
+// visibleColumns: number[],
+// visibleRows: number[],
+// ) {
+// const spans: { [key: string]: { [key: string]: number } } = {};
+//
+// for (let rowIndex of visibleRows) {
+// const row = data[rowIndex];
+// if (!row) {
+// continue;
+// }
+// let endIndex = visibleColumns.at(-1);
+// if (!endIndex) {
+// continue;
+// }
+//
+// for (let columnIndex of visibleColumns) {
+// const colDef = leafColumns[columnIndex];
+// if (!colDef) {
+// continue;
+// }
+// let span = 1;
+// spans[rowIndex] ??= {};
+// const { columnSpanning, columnSpanComparator, field } = colDef;
+// if (!columnSpanning) {
+// spans[rowIndex][columnIndex] = span;
+// } else {
+// while (columnIndex + span <= endIndex + 1) {
+// const nextColumnDef = leafColumns[columnIndex + span];
+// if (
+// nextColumnDef &&
+// columnSpanComparator(
+// colDef.valueRenderer({
+// columnDef: colDef,
+// data: row,
+// value: row[colDef.field],
+// }),
+// nextColumnDef.valueRenderer({
+// columnDef: nextColumnDef,
+// data: row,
+// value: row[nextColumnDef.field],
+// }),
+// row,
+// )
+// ) {
+// if (columnIndex + span > endIndex) {
+// spans[rowIndex][columnIndex] = span;
+// break;
+// }
+// span += 1;
+// } else {
+// spans[rowIndex][columnIndex] = span;
+// }
+// }
+// }
+// }
+// }
+// return spans;
+// }
+
+function getRowIndex(
+  rowIndex: number,
+  columnIndex: number,
+  data: DataRow[],
+  columnDef: LeafColumn,
+  columnSpans: string | undefined,
+): number {
+  let newRowIndex = rowIndex;
+  while (newRowIndex > 0) {
+    const row = data[newRowIndex];
+    const prevRow = data[newRowIndex - 1];
+    const rowIsSpanned = isRowSpanned(columnDef, row, prevRow);
+    const columnIsSpanned = isColumnSpanned(row, columnSpans, columnIndex);
+    if (
+      !rowIsSpanned ||
+      columnIsSpanned ||
+      (rowIsSpanned && isColumnSpanned(prevRow, columnSpans, columnIndex))
+    ) {
+      break;
+    }
+    newRowIndex--;
+  }
+  return newRowIndex;
+}
+
+function getLastRowIndex(
+  rowIndex: number,
+  columnIndex: number,
+  data: DataRow[],
+  columnDef: LeafColumn,
+  columnSpans: string | undefined,
+): number {
+  let newRowIndex = rowIndex;
+  while (newRowIndex < data.length - 1) {
+    const row = data[newRowIndex];
+    const nextRow = data[newRowIndex + 1];
+    const rowIsSpanned = isRowSpanned(columnDef, nextRow, row);
+    const columnIsSpanned = isColumnSpanned(row, columnSpans, columnIndex);
+    if (
+      columnIsSpanned ||
+      !rowIsSpanned ||
+      (rowIsSpanned && isColumnSpanned(nextRow, columnSpans, columnIndex))
+    ) {
+      break;
+    }
+    newRowIndex++;
+  }
+  return newRowIndex;
+}
+
+function getColumnIndex(
+  columnIndex: number,
+  row: DataRow,
+  columnSpans: string | undefined,
+  boundary: "start" | "end" = "start",
+): number {
+  if (!row || !columnSpans) {
+    return columnIndex;
+  }
+  const colSpans = row[columnSpans];
+  if (!isColumnSpans(colSpans)) {
+    return columnIndex;
+  }
+  const span = colSpans.find(
+    // span.from <= columnIndex ? what's the impact ?
+    (span) => span.from <= columnIndex && columnIndex <= span.to,
+  );
+  if (span === undefined) {
+    return columnIndex;
+  }
+  if (boundary === "start") {
+    return span.from;
+  }
+  return span.to;
+}
+
+function isRowSpanned(
+  columnDef: LeafColumn,
+  row: DataRow | undefined,
+  prevRow: DataRow | undefined,
+): boolean {
+  return (
+    columnDef.rowSpanning &&
+    row !== undefined &&
+    prevRow !== undefined &&
+    columnDef.rowSpanComparator(
+      columnDef.valueRenderer({
+        columnDef,
+        data: prevRow,
+        value: prevRow[columnDef.field],
+      }),
+      columnDef.valueRenderer({
+        columnDef,
+        data: row,
+        value: row[columnDef.field],
+      }),
+    )
+  );
+}
+
+function isColumnSpanned(
+  row: DataRow | undefined,
+  columnSpans: string | undefined,
+  columnIndex: number,
+): boolean {
+  if (!row || !columnSpans) {
+    return false;
+  }
+  const colSpans = row[columnSpans];
+  if (
+    isColumnSpans(colSpans) &&
+    colSpans.find((span) => span.from < columnIndex && columnIndex <= span.to)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isColumnSpans(columnSpans: unknown): columnSpans is ColumnSpan[] {
+  return (
+    Array.isArray(columnSpans) &&
+    columnSpans.every(
+      (columnSpan) =>
+        typeof columnSpan.field === "string" &&
+        typeof columnSpan.from === "number" &&
+        typeof columnSpan.to === "number",
+    )
+  );
+}
+
+function isCellFocused(
+  cell: Cell | null,
+  rowIndex: number,
+  columnIndex: number,
+  endRowIndex: number,
+  endColumnIndex: number,
+) {
+  if (!cell) {
+    return false;
+  }
+  const matchesColumn =
+    columnIndex <= cell.columnIndex && cell.columnIndex <= endColumnIndex;
+  const matchesRow = rowIndex <= cell.rowIndex && cell.rowIndex <= endRowIndex;
+  return matchesColumn && matchesRow;
+}
+
+function getColumnSpan(
+  spans: ColumnSpan[] | undefined,
+  columnIndex: number,
+  condition: "from" | "in",
+): ColumnSpan | undefined {
+  if (!Array.isArray(spans)) {
+    return;
+  }
+
+  return spans.find(({ from, to }) => {
+    if (condition === "from") {
+      return columnIndex === from;
+    }
+    return from <= columnIndex && columnIndex <= to;
+  });
 }
