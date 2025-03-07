@@ -39,6 +39,11 @@ export function Simple() {
   return (
     <>
       <h1>Simple</h1>
+      <p>
+        This example demonstates most basic implementation of the grid,
+        providing the only two required props: <code>columnDefs</code> and{" "}
+        <code>data</code>.
+      </p>
       <Grid columnDefs={defs} data={data.slice(0, 6)} />
     </>
   );
@@ -170,8 +175,8 @@ export function Sorting() {
       <p>
         In this example, you can define your own custom sort symbols (see the{" "}
         <em>Primary Property Type - Self-Selected</em> column). You can also
-        define which sort states you can cycle through. In this case, all of the
-        other columns exclude the "unsorted" state from being cycled to.
+        define which sort states you can cycle through. In this example, all of
+        the other columns exclude the "unsorted" state from being cycled to.
       </p>
       <Grid
         columnDefs={defs}
@@ -460,24 +465,29 @@ export function CellFocus() {
 export function CellSelection() {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
-  const [selectionMode, setSelectionMode] = useState<string>("unmanaged");
+  const [selectionMode, setSelectionMode] = useState<string>("lib-managed");
   const [showSelection, setShowSelection] = useState<boolean>(true);
 
   return (
     <>
       <h1>Cell selection</h1>
-      <h3>TODO</h3>
+      <h2>Supported behaviors</h2>
       <ul>
-        <li>Test on touch device</li>
+        <li>Mouse/press down and drag to select a range of cells</li>
+        <li>
+          Click on a cell to focus, then <kbd>Shift</kbd> + click to select a
+          range of cells
+        </li>
+        <li>
+          Click on a cell to focus, then press <kbd>Shift</kbd> +{" "}
+          <kbd>ArrowKey</kbd> to change the range of cells selected
+        </li>
       </ul>
-      <label>
-        <input
-          checked={showSelection}
-          onChange={() => setShowSelection((prev) => !prev)}
-          type="checkbox"
-        />{" "}
-        Draw selection area
-      </label>
+      <p>
+        Cell focus and selection are independent of each other and the behavior
+        can be defined at various levels of your app. Play around with the
+        options below:
+      </p>
       <fieldset style={{ marginBlock: "0.5rem" }}>
         <legend>Cell selection</legend>
         <label style={{ display: "block", marginBlock: "0.5rem" }}>
@@ -514,6 +524,16 @@ export function CellSelection() {
           because Cantal calculates the ranges for you.
         </label>
       </fieldset>
+      <p>Lastly, you can optional render a cursor selection area.</p>
+      <label>
+        <input
+          checked={showSelection}
+          onChange={() => setShowSelection((prev) => !prev)}
+          type="checkbox"
+        />{" "}
+        Draw selection area
+      </label>
+      <p />
       <Grid
         columnDefs={colDefs}
         data={data}
@@ -1241,7 +1261,6 @@ export function ColumnSpanning() {
         )}
         focusedCell={focusedCell}
         handleFocusedCellChange={(cell: Cell) => {
-          console.log({ focusedCell: cell });
           if (cell) {
             setFocusedCell(cell);
           }

@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type FC,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type Ref,
@@ -16,12 +17,14 @@ import {
   Body,
   type Cell,
   type ColumnSpan,
+  type EditCell,
   type IndexedArray,
   type Range,
 } from "./Body";
 import { Header } from "./Header";
 import { Filter, type FiltererProps } from "./Filter";
 import type { SortState } from "./Sorter";
+import { type EditorProps, InputEditor } from "./editors/InputEditor";
 
 type RefCallback<T> = (instance: T | null) => void;
 export type NonEmptyArray<T> = [T, ...T[]];
@@ -37,11 +40,21 @@ type AriaCellLabel = string | ((args: AriaCellLabelArgs) => string);
 type AriaHeaderCellLabel =
   | string
   | ((args: { def: ColumnDefWithDefaults; position: Position }) => string);
+type EditableArgs = { data: DataRow; rowIndex: number; value: unknown };
+type Editable =
+  | boolean
+  | (({ data, rowIndex, value }: EditableArgs) => boolean);
 
 export type DataRow = Record<string, unknown>;
+type EditorComponent = <T extends EditorProps>(
+  args: unknown,
+) => (props: T) => ReactNode;
 export interface ColumnDef {
+  allowEditCellOverflow?: boolean;
   ariaCellLabel?: AriaCellLabel;
   ariaHeaderCellLabel?: AriaHeaderCellLabel;
+  editable?: Editable;
+  editor?: EditorComponent;
   field: string;
   filterable?: boolean;
   filterer?: TFilterProps<FiltererProps>;
@@ -54,6 +67,7 @@ export interface ColumnDef {
   sortStates?: NonEmptyArray<SortState>;
   subcolumns?: ColumnDef[];
   title?: string;
+  valueParser?: (value: unknown) => typeof value;
   valueRenderer?: <T>(args: {
     columnDef: LeafColumn;
     data: DataRow;
@@ -63,14 +77,18 @@ export interface ColumnDef {
 }
 
 export interface ColumnDefWithDefaults extends ColumnDef {
+  allowEditCellOverflow: boolean;
   ariaCellLabel: AriaCellLabel;
   ariaHeaderCellLabel: AriaHeaderCellLabel;
+  editable: Editable;
+  editor: EditorComponent;
   filterer: TFilterProps<FiltererProps>;
   minWidth: number;
   rowSpanComparator: (prev: unknown, curr: unknown) => boolean;
   rowSpanning: boolean;
   sortStates: NonEmptyArray<SortState>;
   subcolumns: ColumnDefWithDefaults[];
+  valueParser: (value: unknown) => typeof value;
   valueRenderer: <T>(args: {
     columnDef: LeafColumn;
     data: DataRow;
@@ -117,6 +135,14 @@ export interface HandlePointerDownArgs {
   defaultHandler: () => void;
 }
 
+export interface HandleDoublePointerDownArgs {
+  e: ReactPointerEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>;
+  cell: Cell;
+  point?: Point;
+  columnDef: ColumnDefWithDefaults;
+  defaultHandler: () => void;
+}
+
 interface GridProps {
   body?: (
     leafColumns: LeafColumn[],
@@ -136,9 +162,20 @@ interface GridProps {
   columnSorts?: { [key: string]: string };
   columnSpans?: string;
   data: DataRow[];
+  editCell?: EditCell | undefined;
   filters?: { [key: string]: string };
   focusedCell?: Cell | null;
   gap?: number | { columnGap: number; rowGap: number };
+  handleContextMenu?: (args: {
+    event: MouseEvent;
+    defaultHandler: () => void;
+  }) => void;
+  handleDoublePointerDown?: (args: HandleDoublePointerDownArgs) => void;
+  handleEdit?: (
+    editRows: { [key: string]: DataRow },
+    leafColumns: LeafColumn[],
+  ) => void;
+  handleEditCellChange?: (cell?: EditCell) => void;
   handleFocusedCellChange?: (
     focusedCell: Cell,
     event: SyntheticEvent,
@@ -154,11 +191,12 @@ interface GridProps {
   ) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
-    endPoint: Point | null,
+    endPoint: Point | undefined,
     e:
       | PointerEvent
       | ReactPointerEvent<HTMLDivElement>
-      | KeyboardEvent<HTMLDivElement>,
+      | KeyboardEvent<HTMLDivElement>
+      | MouseEvent<HTMLDivElement>,
   ) => void;
   handleSort?: (
     nextSortMode: { [key: string]: string } | undefined,
@@ -178,11 +216,20 @@ interface GridProps {
   overscanColumns?: number;
   overscanRows?: number;
   rowHeight?: number;
+  rowId?: string;
   selectedRanges?: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
   showSelectionBox?: boolean;
   styles?: {
-    container: CSSProperties;
+    cell?:
+      | CSSProperties
+      | ((
+          rowData: DataRow,
+          columnDef: LeafColumn,
+          rowIndex: number,
+          columnIndex: number,
+        ) => { base?: CSSProperties });
+    container?: CSSProperties;
   };
   virtual?: "columns" | "rows" | boolean;
 }
@@ -208,10 +255,15 @@ export function Grid({
       columnSpans={columnSpans}
       containerHeight={height}
       data={data}
+      editCell={editCell}
       focusedCell={focusedCell}
+      handleContextMenu={handleContextMenu}
+      handleEdit={handleEdit}
+      handleEditCellChange={handleEditCellChange}
       handleFocusedCellChange={handleFocusedCellChange}
       handleKeyDown={handleKeyDown}
       handlePointerDown={handlePointerDown}
+      handleDoublePointerDown={handleDoublePointerDown}
       handleSelection={handleSelection}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
@@ -220,6 +272,7 @@ export function Grid({
       positions={positions}
       rowGap={typeof gap === "number" ? gap : gap.rowGap}
       rowHeight={rowHeight}
+      rowId={rowId}
       selectedRanges={selectedRanges}
       selectionFollowsFocus={selectionFollowsFocus}
       setState={setState}
@@ -234,9 +287,14 @@ export function Grid({
   columnSorts = {},
   columnSpans,
   data,
+  editCell,
   filters = {},
   focusedCell,
   gap = { columnGap: 1, rowGap: 1 },
+  handleContextMenu = noop,
+  handleDoublePointerDown = invokeDefaultHanlder,
+  handleEdit = noop,
+  handleEditCellChange = noop,
   handleFocusedCellChange = noop,
   handleFilter = noop,
   handleKeyDown = invokeDefaultHanlder,
@@ -270,9 +328,11 @@ export function Grid({
       visibleColumnStart={visibleStartColumn}
     />
   ),
+  id,
   overscanColumns = 3,
   overscanRows = 3,
   rowHeight,
+  rowId,
   selectedRanges = [],
   selectionFollowsFocus,
   showSelectionBox,
@@ -325,6 +385,7 @@ export function Grid({
   // to take pinned columns into account
   const gridTemplateColumns = getColumnWidths(orderedLeafColumns);
   const canvasWidth = getGridCanvasWidth(orderedLeafColumns, columnGap);
+  // TODO: Figure out how to pass prop styles to body component
   const computedStyles = {
     columnGap,
     gridTemplateColumns,
@@ -341,6 +402,9 @@ export function Grid({
   return (
     <div
       className="cantal"
+      // TODO: use random id fallback
+      // Update the docs too
+      id={id}
       ref={mergeRefs(containerRef, sizeRef)}
       style={containerStyles}
     >
@@ -375,6 +439,7 @@ const DEFAULT_COLUMN_WIDTH = 100;
 
 // QUESTION: Avoid setting minWidth, width for columns with subcolumns?
 const columnDefDefaults = {
+  allowEditCellOverflow: false,
   ariaCellLabel: ({
     columnIndex,
     data,
@@ -405,6 +470,8 @@ const columnDefDefaults = {
       })
       .concat([def.title])
       .join(" ")}`,
+  editable: false,
+  editor: () => InputEditor,
   filterer: Filter,
   minWidth: MIN_COLUMN_WIDTH,
   rowSpanComparator: (prev: unknown, curr: unknown) => prev === curr,
@@ -415,6 +482,7 @@ const columnDefDefaults = {
     { label: "descending", symbol: "↓", iterable: true },
   ] satisfies NonEmptyArray<SortState>,
   subcolumns: [],
+  valueParser: (value: unknown) => value,
   valueRenderer: (args: {
     columnDef: ColumnDefWithDefaults;
     data: DataRow;

@@ -117,6 +117,10 @@
   background-color: var(--cell-pinned-background-color);
 }
 
+.cantal-cell-editing {
+  padding: 0;
+}
+
 .cantal-cell-focused {
   border: 1px solid var(--cell-focus-color);
 }

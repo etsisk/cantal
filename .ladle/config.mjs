@@ -19,5 +19,9 @@ export default {
     "grid--virtual-columns",
     "grid--row-spanning",
     "grid--column-spanning",
+    "editing--simple",
+    "editing--overflow-editors",
+    "editing--pinned-and-spanned",
+    "events--context-menu",
   ],
 };

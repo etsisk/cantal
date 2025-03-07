@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ColumnDefWithDefaults, LeafColumn, Position } from "./Grid";
 
 interface CellProps {
+  allowEditCellOverflow: boolean;
   ariaLabel: string;
   children: ReactNode;
   columnDef: ColumnDefWithDefaults | LeafColumn;
@@ -9,6 +10,7 @@ interface CellProps {
   columnIndexRelative: number;
   endColumnIndex: number;
   endRowIndex: number;
+  isEditing: boolean;
   isFocused: boolean;
   position: Position | undefined;
   rowIndex: number;
@@ -19,6 +21,7 @@ interface CellProps {
 }
 
 export function Cell({
+  allowEditCellOverflow,
   ariaLabel,
   children,
   columnDef,
@@ -27,6 +30,7 @@ export function Cell({
   columnIndexRelative,
   endColumnIndex,
   endRowIndex,
+  isEditing,
   isFocused,
   position,
   rowIndex,
@@ -47,7 +51,7 @@ export function Cell({
       aria-label={ariaLabel}
       className={`cantal-cell-base${isFocused ? " cantal-cell-focused" : ""}${
         columnDef.pinned ? ` cantal-cell-pinned-${columnDef.pinned}` : ""
-      }${selected ? " cantal-cell-selected" : ""}`}
+      }${selected ? " cantal-cell-selected" : ""}${isEditing ? " cantal-cell-editing" : ""}`}
       data-col-idx={columnIndex}
       data-field={columnDef.field}
       data-row-idx={startRowIndex}
@@ -58,6 +62,9 @@ export function Cell({
         gridColumnEnd: position.pinnedIndexEnd + columnSpan,
         gridRowStart: virtualRowIndex + 1,
         gridRowEnd: virtualRowIndex + 1 + rowSpan,
+        ...(allowEditCellOverflow && isEditing
+          ? { overflow: "visible", zIndex: 0 }
+          : {}),
       }}
     >
       {children}

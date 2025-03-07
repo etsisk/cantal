@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type Dispatch,
   type KeyboardEvent,
+  type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
   type SetStateAction,
@@ -17,6 +18,7 @@ import {
   getPinnedColumnsOffset,
   type ColumnDefWithDefaults,
   type DataRow,
+  type HandleDoublePointerDownArgs,
   type HandleKeyDownArgs,
   type HandlePointerDownArgs,
   type LeafColumn,
@@ -29,6 +31,11 @@ export interface Cell {
   rowIndex: number;
 }
 
+export interface EditCell extends Cell {
+  selectInitialValue: boolean;
+  value: string;
+}
+
 type Direction = "left" | "right" | "up" | "down";
 export type ColumnSpan = { field: string; from: number; to: number };
 
@@ -38,7 +45,20 @@ interface BodyProps {
   columnSpans?: string;
   containerHeight: number;
   data: any[];
+  editCell?: EditCell | undefined;
   focusedCell?: Cell | null;
+  handleContextMenu: (args: {
+    cell: Cell;
+    columnDef: LeafColumn;
+    defaultHandler: () => void;
+    event: MouseEvent;
+  }) => void;
+  handleDoublePointerDown: (args: HandleDoublePointerDownArgs) => void;
+  handleEdit: (
+    editRows: { [key: string]: DataRow },
+    leafColumns: LeafColumn[],
+  ) => void;
+  handleEditCellChange: (editCell?: EditCell) => void;
   handleFocusedCellChange: (
     focusCell: Cell,
     e: SyntheticEvent,
@@ -48,11 +68,12 @@ interface BodyProps {
   handlePointerDown: (args: HandlePointerDownArgs) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
-    endPoint: Point | null,
+    endPoint: Point | undefined,
     e:
       | PointerEvent
       | ReactPointerEvent<HTMLDivElement>
-      | KeyboardEvent<HTMLDivElement>,
+      | KeyboardEvent<HTMLDivElement>
+      | MouseEvent<HTMLDivElement>,
   ) => void;
   headerViewportRef: RefObject<HTMLDivElement | null>;
   leafColumns: LeafColumn[];
@@ -61,6 +82,7 @@ interface BodyProps {
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
   rowGap: number;
   rowHeight?: number;
+  rowId?: string;
   selectedRanges: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
   setState: {
@@ -80,7 +102,12 @@ export function Body({
   columnSpans,
   containerHeight,
   data,
+  editCell,
   focusedCell = null,
+  handleContextMenu,
+  handleDoublePointerDown,
+  handleEdit,
+  handleEditCellChange,
   handleFocusedCellChange,
   handleKeyDown,
   handlePointerDown,
@@ -92,6 +119,7 @@ export function Body({
   positions,
   rowGap,
   rowHeight = 27,
+  rowId,
   selectedRanges,
   selectionFollowsFocus = false,
   setState,
@@ -130,10 +158,10 @@ export function Body({
   }, [containerHeight]);
 
   useEffect(() => {
-    if (/*!editCell && */ focusedCell && focusedCellRef.current) {
+    if (!editCell && focusedCell && focusedCellRef.current) {
       focusedCellRef.current.focus();
     }
-  }, [/*editCell, */ focusedCell]);
+  }, [editCell, focusedCell]);
 
   useEffect(() => {
     if (!focusedCell || !viewportRef.current) {
@@ -185,7 +213,7 @@ export function Body({
       const cell = getCellFromEvent(e);
       const point = canvasRef.current
         ? getPointFromEvent(e, canvasRef.current)
-        : null;
+        : undefined;
 
       if (!cell || !startDragCell) {
         return;
@@ -203,13 +231,13 @@ export function Body({
         point,
         e,
       );
-      if (showSelectionBox && point !== null) {
+      if (showSelectionBox && point !== undefined) {
         setEndDragPoint(point);
       }
     }
 
     function pointerUp(e: PointerEvent) {
-      handleSelection?.(selectedRanges, null, e);
+      handleSelection?.(selectedRanges, undefined, e);
       setStartDragCell(undefined);
       setStartDragPoint(undefined);
       setEndDragPoint(undefined);
@@ -354,6 +382,23 @@ export function Body({
     eventLabel: string,
   ) {}
 
+  function handlePaste() {
+    navigator.clipboard.readText().then((clipboardText) => {
+      const pasteMatrix = createPasteMatrix(clipboardText);
+      handleEdit(
+        getEditRowsFromPasteMatrix(
+          pasteMatrix,
+          data,
+          leafColumns,
+          selectedRanges,
+          focusedCell,
+          columnSpans,
+        ),
+        leafColumns,
+      );
+    });
+  }
+
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (!focusedCell) {
       return;
@@ -399,20 +444,126 @@ export function Body({
           ],
           // TODID: Made `point` null - doesn't make sense for keyboard event
           // point,
-          null,
+          undefined,
           e,
         );
       } else {
         navigateCell(e, dir);
       }
     } else if (e.key === "Tab") {
+      if (editCell) {
+        commitCellEdit();
+      }
       e.preventDefault();
       navigateCell(e, e.shiftKey ? "left" : "right", true);
+    } else if (e.key === "Escape") {
+      if (editCell) {
+        cancelCellEdit();
+      }
+      e.preventDefault();
     } else if (e.key === "Enter") {
+      commitCellEdit();
       e.preventDefault();
       navigateCell(e, e.shiftKey ? "up" : "down");
     } else if (e.key === "c" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
       handleCopy();
+    } else if (e.key === "v" && (e.metaKey || e.ctrlKey)) {
+      handlePaste();
+    } else if (isKeyDownPrintable(e)) {
+      startCellEdit(focusedCell, "");
+    } else if (e.key === "Backspace" || e.key === "Delete") {
+      startCellEdit(focusedCell, "");
+    } else if (e.key === "F2" || (e.key === "u" && e.ctrlKey)) {
+      startCellEdit(focusedCell, undefined, false);
+    }
+  }
+
+  function startCellEdit(
+    cell: Cell | null,
+    value?: "",
+    selectInitialValue?: boolean | undefined,
+  ) {
+    if (!cell) {
+      return;
+    }
+
+    const row = data[cell.rowIndex];
+    const leafColumn = leafColumns[cell.columnIndex];
+    if (!row || !leafColumn) {
+      return;
+    }
+
+    const columnDef = columnSpans
+      ? applyColumnSpanDefDefaults(
+          getColumnSpan(row[columnSpans], cell.columnIndex),
+          leafColumn,
+        )
+      : leafColumn;
+    const topLeftMostCell = {
+      columnIndex: getColumnIndex(cell.columnIndex, row, columnSpans),
+      rowIndex: getRowIndex(
+        cell.rowIndex,
+        cell.columnIndex,
+        data,
+        columnDef,
+        columnSpans,
+      ),
+    };
+
+    if (
+      !isCellEditable(topLeftMostCell, row, columnDef) ||
+      isSameCell(
+        {
+          columnIndex: topLeftMostCell.columnIndex,
+          rowIndex: topLeftMostCell.rowIndex,
+        },
+        editCell,
+      )
+    ) {
+      return;
+    }
+
+    handleEditCellChange({
+      ...topLeftMostCell,
+      selectInitialValue: selectInitialValue ?? value === undefined,
+      value: value ?? data[topLeftMostCell.rowIndex][columnDef.field],
+    });
+  }
+
+  function commitCellEdit(value?: unknown) {
+    if (!editCell) {
+      return;
+    }
+
+    const row = data[editCell.rowIndex];
+    const leafColumn = leafColumns[editCell.columnIndex];
+    if (!leafColumn || !row) {
+      return;
+    }
+    const columnDef = columnSpans
+      ? applyColumnSpanDefDefaults(
+          getColumnSpan(row[columnSpans], editCell.columnIndex),
+          leafColumn,
+        )
+      : leafColumn;
+    handleEditCellChange(undefined);
+    handleEdit(
+      {
+        [rowId ? row[rowId] : editCell.rowIndex]: {
+          [columnDef.field]:
+            value !== undefined
+              ? columnDef.valueParser(value)
+              : columnDef.valueParser(editCell.value),
+        },
+      },
+      leafColumns,
+    );
+  }
+
+  function cancelCellEdit() {
+    if (editCell) {
+      handleEditCellChange(undefined);
     }
   }
 
@@ -558,7 +709,8 @@ export function Body({
     e:
       | PointerEvent
       | ReactPointerEvent<HTMLDivElement>
-      | KeyboardEvent<HTMLDivElement>,
+      | KeyboardEvent<HTMLDivElement>
+      | MouseEvent<HTMLDivElement>,
   ) {
     if (selectionFollowsFocus && handleSelection) {
       const point = getPointFromEvent(e, canvasRef.current);
@@ -607,11 +759,21 @@ export function Body({
     return [range(startRow, startColumn, endRow, endColumn)];
   }
 
-  function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    const cell = getCellFromEvent(e);
-    const point = getPointFromEvent(e, canvasRef.current);
+  function onPointerDown(
+    e: ReactPointerEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>,
+  ) {
+    // Persist event object across function calls
+    e.persist?.();
+    // Allow DIV elements to take focus
+    e.preventDefault?.();
 
-    if (!cell || !point) {
+    const cell = getCellFromEvent(e);
+    const eventIsPointerEvent = isPointerEvent(e);
+    const point = eventIsPointerEvent
+      ? getPointFromEvent(e, canvasRef.current)
+      : undefined;
+
+    if (!cell || (!point && eventIsPointerEvent)) {
       return;
     }
 
@@ -621,31 +783,37 @@ export function Body({
       return;
     }
 
-    handlePointerDown({
-      e,
-      cell,
-      point,
-      columnDef,
-      defaultHandler: () => defaultHandlePointerDown(e, cell, point),
-    });
-    // Allow DIV elements to take focus
-    e.preventDefault();
-    // Persist event object across function calls
-    e.persist();
+    if (e.detail === 2 || e.type === "dblclick") {
+      handleDoublePointerDown({
+        e,
+        cell,
+        point,
+        columnDef,
+        defaultHandler: () => startCellEdit(cell),
+      });
+    } else if (eventIsPointerEvent && point) {
+      handlePointerDown({
+        e,
+        cell,
+        point,
+        columnDef,
+        defaultHandler: () => defaultHandlePointerDown(e, cell, point),
+      });
+    }
   }
 
   function defaultHandlePointerDown(
     e: ReactPointerEvent<HTMLDivElement>,
     cell: Cell,
-    point: Point,
+    point: Point | undefined,
   ): void {
-    // if (isSameCell(cell, editCell)) {
-    //   return;
-    // }
+    if (isSameCell(cell, editCell)) {
+      return;
+    }
 
-    // if (editCell) {
-    //   commitCellEdit();
-    // }
+    if (editCell) {
+      commitCellEdit();
+    }
 
     if (
       e.shiftKey &&
@@ -679,10 +847,10 @@ export function Body({
     }
 
     // Only start cell drag for a left mouse button down
-    if (e.button === 0 && !e.ctrlKey) {
+    if (e.button === 0 && !e.ctrlKey && point) {
       handleFocusedCellChange(cell, e, point);
 
-      if (handleSelection) {
+      if (handleSelection && point) {
         setStartDragCell(cell);
         setStartDragPoint(point);
         setSelectionRangeToFocusedCell(cell, e);
@@ -781,6 +949,28 @@ export function Body({
     >
       <div
         className="cantal-body-canvas"
+        onContextMenu={(e) => {
+          const cell = getCellFromEvent(e);
+          if (!cell || handleContextMenu === undefined) {
+            return;
+          }
+          const columnDef = leafColumns[cell.columnIndex];
+          if (!columnDef) {
+            return;
+          }
+          handleContextMenu({
+            cell,
+            columnDef,
+            event: e,
+            defaultHandler: () => {
+              if (!rangesContainCell(selectedRanges, cell)) {
+                handleFocusedCellChange(cell, e);
+                setSelectionRangeToFocusedCell(cell, e);
+              }
+            },
+          });
+        }}
+        onDoubleClick={(e) => onPointerDown({ ...e, detail: 2 })}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
         onPointerUp={(e: ReactPointerEvent<HTMLDivElement>) =>
@@ -938,6 +1128,21 @@ export function Body({
                             columnDef,
                           );
                         }
+                        const Editor = colDef.editor({
+                          columnDef: colDef,
+                          columnIndex,
+                          data: row,
+                          rowIndex,
+                          value: colDef.valueRenderer({
+                            columnDef: colDef,
+                            data: row,
+                            value: row[colDef.field],
+                          }),
+                        });
+                        const isEditing = isSameCell(
+                          { columnIndex, rowIndex },
+                          editCell,
+                        );
                         const isFocused = isCellFocused(
                           focusedCell,
                           startRowIndex,
@@ -947,6 +1152,7 @@ export function Body({
                         );
                         return (
                           <Cell
+                            allowEditCellOverflow={colDef.allowEditCellOverflow}
                             ariaLabel={
                               typeof colDef.ariaCellLabel === "function"
                                 ? colDef.ariaCellLabel({
@@ -963,6 +1169,7 @@ export function Body({
                             columnIndexRelative={relativeColumnIndex}
                             endColumnIndex={endColumnIndex}
                             endRowIndex={endRowIndex}
+                            isEditing={isEditing}
                             isFocused={isFocused}
                             key={`${rowIndex}-${columnIndex}`}
                             position={positions.get(columnDef)}
@@ -975,11 +1182,33 @@ export function Body({
                             startRowIndex={startRowIndex}
                             virtualRowIndex={relativeRowIndex}
                           >
-                            {colDef.valueRenderer({
-                              columnDef: colDef,
-                              data: row,
-                              value: row[colDef.field],
-                            })}
+                            {isEditing && Editor ? (
+                              <Editor
+                                columnDef={colDef}
+                                columnIndex={columnIndex}
+                                data={row}
+                                handleChange={(value: string) => {
+                                  if (editCell) {
+                                    handleEditCellChange({
+                                      ...editCell,
+                                      selectInitialValue: false,
+                                      value,
+                                    });
+                                  }
+                                }}
+                                rowIndex={rowIndex}
+                                selectInitialValue={
+                                  editCell?.selectInitialValue
+                                }
+                                value={editCell?.value}
+                              />
+                            ) : (
+                              colDef.valueRenderer({
+                                columnDef: colDef,
+                                data: row,
+                                value: row[colDef.field],
+                              })
+                            )}
                           </Cell>
                         );
                       },
@@ -1064,6 +1293,21 @@ export function Body({
                           columnDef,
                         );
                       }
+                      const Editor = colDef.editor({
+                        columnDef: colDef,
+                        columnIndex: colIndex,
+                        data: row,
+                        rowIndex,
+                        value: colDef.valueRenderer({
+                          columnDef: colDef,
+                          data: row,
+                          value: row[colDef.field],
+                        }),
+                      });
+                      const isEditing = isSameCell(
+                        { columnIndex: colIndex, rowIndex },
+                        editCell,
+                      );
                       const isFocused = isCellFocused(
                         focusedCell,
                         startRowIndex,
@@ -1073,6 +1317,7 @@ export function Body({
                       );
                       return (
                         <Cell
+                          allowEditCellOverflow={colDef.allowEditCellOverflow}
                           ariaLabel={
                             typeof colDef.ariaCellLabel === "function"
                               ? colDef.ariaCellLabel({
@@ -1089,6 +1334,7 @@ export function Body({
                           columnIndexRelative={relativeColumnIndex}
                           endColumnIndex={endColumnIndex}
                           endRowIndex={endRowIndex}
+                          isEditing={isEditing}
                           isFocused={isFocused}
                           key={`${rowIndex}-${colIndex}`}
                           position={positions.get(columnDef)}
@@ -1101,11 +1347,31 @@ export function Body({
                           startRowIndex={startRowIndex}
                           virtualRowIndex={relativeRowIndex}
                         >
-                          {colDef.valueRenderer({
-                            columnDef: colDef,
-                            data: row,
-                            value: row[colDef.field],
-                          })}
+                          {isEditing && Editor ? (
+                            <Editor
+                              columnDef={colDef}
+                              columnIndex={colIndex}
+                              data={row}
+                              handleChange={(value: string) => {
+                                if (editCell) {
+                                  handleEditCellChange({
+                                    ...editCell,
+                                    selectInitialValue: false,
+                                    value,
+                                  });
+                                }
+                              }}
+                              rowIndex={rowIndex}
+                              selectInitialValue={editCell?.selectInitialValue}
+                              value={editCell?.value}
+                            />
+                          ) : (
+                            colDef.valueRenderer({
+                              columnDef: colDef,
+                              data: row,
+                              value: row[colDef.field],
+                            })
+                          )}
                         </Cell>
                       );
                     });
@@ -1187,6 +1453,21 @@ export function Body({
                             columnDef,
                           );
                         }
+                        const Editor = colDef.editor({
+                          columnDef: colDef,
+                          columnIndex: colIndex,
+                          data: row,
+                          rowIndex,
+                          value: colDef.valueRenderer({
+                            columnDef: colDef,
+                            data: row,
+                            value: row[colDef.field],
+                          }),
+                        });
+                        const isEditing = isSameCell(
+                          { columnIndex: colIndex, rowIndex },
+                          editCell,
+                        );
                         const isFocused = isCellFocused(
                           focusedCell,
                           startRowIndex,
@@ -1196,6 +1477,7 @@ export function Body({
                         );
                         return (
                           <Cell
+                            allowEditCellOverflow={colDef.allowEditCellOverflow}
                             ariaLabel={
                               typeof colDef.ariaCellLabel === "function"
                                 ? colDef.ariaCellLabel({
@@ -1212,6 +1494,7 @@ export function Body({
                             columnIndexRelative={relativeColumnIndex}
                             endColumnIndex={endColumnIndex}
                             endRowIndex={endRowIndex}
+                            isEditing={isEditing}
                             isFocused={isFocused}
                             key={`${rowIndex}-${colIndex}`}
                             position={positions.get(columnDef)}
@@ -1224,11 +1507,33 @@ export function Body({
                             startRowIndex={startRowIndex}
                             virtualRowIndex={relativeRowIndex}
                           >
-                            {colDef.valueRenderer({
-                              columnDef: colDef,
-                              data: row,
-                              value: row[colDef.field],
-                            })}
+                            {isEditing && Editor ? (
+                              <Editor
+                                columnDef={colDef}
+                                columnIndex={colIndex}
+                                data={row}
+                                handleChange={(value: string) => {
+                                  if (editCell) {
+                                    handleEditCellChange({
+                                      ...editCell,
+                                      selectInitialValue: false,
+                                      value,
+                                    });
+                                  }
+                                }}
+                                rowIndex={rowIndex}
+                                selectInitialValue={
+                                  editCell?.selectInitialValue
+                                }
+                                value={editCell?.value}
+                              />
+                            ) : (
+                              colDef.valueRenderer({
+                                columnDef: colDef,
+                                data: row,
+                                value: row[colDef.field],
+                              })
+                            )}
                           </Cell>
                         );
                       },
@@ -1311,6 +1616,21 @@ export function Body({
                       columnDef,
                     );
                   }
+                  const Editor = columnDefForSpan.editor({
+                    columnDef: columnDefForSpan,
+                    columnIndex,
+                    data: row,
+                    rowIndex,
+                    value: columnDefForSpan.valueRenderer({
+                      columnDef: columnDefForSpan,
+                      data: row,
+                      value: row[columnDefForSpan.field],
+                    }),
+                  });
+                  const isEditing = isSameCell(
+                    { columnIndex, rowIndex },
+                    editCell,
+                  );
                   const isFocused = isCellFocused(
                     focusedCell,
                     startRowIndex,
@@ -1320,6 +1640,9 @@ export function Body({
                   );
                   return (
                     <Cell
+                      allowEditCellOverflow={
+                        columnDefForSpan.allowEditCellOverflow
+                      }
                       ariaLabel={
                         typeof columnDefForSpan.ariaCellLabel === "function"
                           ? columnDefForSpan.ariaCellLabel({
@@ -1336,6 +1659,7 @@ export function Body({
                       columnIndexRelative={relativeColumnIndex}
                       endColumnIndex={endColumnIndex}
                       endRowIndex={endRowIndex}
+                      isEditing={isEditing}
                       isFocused={isFocused}
                       key={`${rowIndex}-${columnIndex}`}
                       position={positions.get(columnDef)}
@@ -1348,11 +1672,31 @@ export function Body({
                       startRowIndex={startRowIndex}
                       virtualRowIndex={relativeRowIndex}
                     >
-                      {columnDefForSpan.valueRenderer({
-                        columnDef: columnDefForSpan,
-                        data: row,
-                        value: row[columnDefForSpan.field],
-                      })}
+                      {isEditing && Editor ? (
+                        <Editor
+                          columnDef={columnDefForSpan}
+                          columnIndex={columnIndex}
+                          data={row}
+                          handleChange={(value: string) => {
+                            if (editCell) {
+                              handleEditCellChange({
+                                ...editCell,
+                                selectInitialValue: false,
+                                value,
+                              });
+                            }
+                          }}
+                          rowIndex={rowIndex}
+                          selectInitialValue={editCell?.selectInitialValue}
+                          value={editCell?.value}
+                        />
+                      ) : (
+                        columnDefForSpan.valueRenderer({
+                          columnDef: columnDefForSpan,
+                          data: row,
+                          value: row[columnDefForSpan.field],
+                        })
+                      )}
                     </Cell>
                   );
                 });
@@ -1398,11 +1742,12 @@ function getPointFromEvent(
   event:
     | PointerEvent
     | ReactPointerEvent<HTMLDivElement>
-    | KeyboardEvent<HTMLDivElement>,
+    | KeyboardEvent<HTMLDivElement>
+    | MouseEvent<HTMLDivElement>,
   element: HTMLDivElement | null,
-): Point | null {
-  if (element === null || isKeyboardEvent(event)) {
-    return null;
+): Point | undefined {
+  if (element === null || isKeyboardEvent(event) || isMouseEvent(event)) {
+    return;
   }
   return {
     x: event.clientX - element.getBoundingClientRect().left,
@@ -1644,6 +1989,135 @@ function getCopyMatrix(
   return matrix;
 }
 
+function createPasteMatrix(s: string): string[][] {
+  return s.split("\n").map((row: string) => row.split("\t"));
+}
+
+function getEditRowsFromPasteMatrix(
+  matrix: string[][],
+  data: DataRow[],
+  leafColumns: LeafColumn[],
+  selectedRanges: Range[],
+  focusedCell: Cell | null,
+  rowId?: string,
+  columnSpans?: string,
+) {
+  const editRows: { [key: string]: { [key: string]: unknown } } = {};
+  const selectedRange = selectedRanges[0];
+
+  if (
+    matrix.length === 1 &&
+    matrix[0]?.length === 1 &&
+    selectedRange &&
+    selectedRange.containsMultipleCells()
+  ) {
+    const pasteValue = matrix[0]?.[0];
+    if (pasteValue === undefined || isNullLikeCharacter(pasteValue)) {
+      return editRows;
+    }
+
+    for (
+      let rowIndex = selectedRange.fromRow;
+      rowIndex <= selectedRange.toRow;
+      rowIndex++
+    ) {
+      const editRow: { [key: string]: unknown } = {};
+      const rowData = data[rowIndex];
+      // TODO: Apply columnSpan logic
+      // const colSpans = rowData?.[columnSpans];
+
+      if (!rowData) {
+        continue;
+      }
+
+      for (
+        let columnIndex = selectedRange.fromColumn;
+        columnIndex <= selectedRange.toColumn;
+        columnIndex++
+      ) {
+        let columnDef = leafColumns[columnIndex];
+        if (!columnDef) {
+          break;
+        }
+
+        if (
+          !isCellEditable({ columnIndex, rowIndex }, rowData, columnDef) ||
+          isColumnSpanned(rowData, columnSpans, columnIndex)
+        ) {
+          continue;
+        }
+        // TODO: Apply columnSpan logic
+        // columnDef = applyColumnSpanDefDefaults(getColumnSpan(colSpans, columnIndex, 'from'), columnDef);
+        //
+        editRow[columnDef.field] = columnDef.valueParser(pasteValue);
+      }
+
+      if (Object.keys(editRow).length > 0) {
+        editRows[rowId ? (rowData[rowId] as string) : rowIndex] = editRow;
+      }
+    }
+  } else if (focusedCell) {
+    let pasteRowIndex = 0;
+    for (
+      let rowIndex = focusedCell.rowIndex;
+      rowIndex < focusedCell.rowIndex + matrix.length;
+      rowIndex++
+    ) {
+      const rowData = data[rowIndex];
+      const pasteRow = matrix[pasteRowIndex];
+      if (!rowData || !pasteRow) {
+        continue;
+      }
+      const editRow: { [key: string]: unknown } = {};
+
+      for (
+        let pasteColumnIndex = 0;
+        pasteColumnIndex < pasteRow.length;
+        pasteColumnIndex++
+      ) {
+        let columnDef = leafColumns[focusedCell.columnIndex + pasteColumnIndex];
+        if (!columnDef) {
+          break;
+        }
+
+        if (
+          !isCellEditable(
+            {
+              columnIndex: focusedCell.columnIndex + pasteColumnIndex,
+              rowIndex,
+            },
+            rowData,
+            columnDef,
+          ) ||
+          isColumnSpanned(
+            rowData,
+            columnSpans,
+            focusedCell.columnIndex + pasteColumnIndex,
+          )
+        ) {
+          continue;
+        }
+        // TODO: Apply columnSpan logic
+        // columnDef = applyColumnSpanDefDefaults(getColumnSpan(colSpans, focusedCell.columnIndex + pasteColumnIndex, 'from'), columnDef);
+        //
+        editRow[columnDef.field] = columnDef.valueParser(
+          pasteRow[pasteColumnIndex],
+        );
+      }
+
+      if (Object.keys(editRow).length > 0) {
+        editRows[rowId ? (rowData[rowId] as string) : rowIndex] = editRow;
+      }
+      pasteRowIndex++;
+    }
+  }
+  return editRows;
+}
+
+function isNullLikeCharacter(char: string): boolean {
+  return char === "\\0";
+}
+
 function getMergedRangeFromRanges(ranges: IndexedArray<Range>): Range {
   return ranges
     .slice(1)
@@ -1657,9 +2131,24 @@ function isKeyboardEvent(
   e:
     | KeyboardEvent<HTMLDivElement>
     | PointerEvent
-    | ReactPointerEvent<HTMLDivElement>,
+    | ReactPointerEvent<HTMLDivElement>
+    | MouseEvent<HTMLDivElement>,
 ): e is KeyboardEvent<HTMLDivElement> {
   return (e as KeyboardEvent<HTMLDivElement>).key !== undefined;
+}
+
+function isMouseEvent(
+  e:
+    | KeyboardEvent<HTMLDivElement>
+    | PointerEvent
+    | ReactPointerEvent<HTMLDivElement>
+    | MouseEvent<HTMLDivElement>,
+): e is MouseEvent<HTMLDivElement> {
+  return (
+    (e as KeyboardEvent<HTMLDivElement>).key === undefined &&
+    (e as PointerEvent | ReactPointerEvent<HTMLDivElement>).pointerId ===
+      undefined
+  );
 }
 
 // TODO: Move to a utils file
@@ -1982,7 +2471,7 @@ function isCellFocused(
 function getColumnSpan(
   spans: ColumnSpan[] | undefined,
   columnIndex: number,
-  condition: "from" | "in",
+  condition: "from" | "in" = "in",
 ): ColumnSpan | undefined {
   if (!Array.isArray(spans)) {
     return;
@@ -1994,4 +2483,36 @@ function getColumnSpan(
     }
     return from <= columnIndex && columnIndex <= to;
   });
+}
+
+function isSameCell(cellA: Cell | undefined, cellB: Cell | undefined) {
+  return (
+    cellA?.rowIndex === cellB?.rowIndex &&
+    cellA?.columnIndex === cellB?.columnIndex
+  );
+}
+
+function isKeyDownPrintable(e: KeyboardEvent) {
+  return !e.metaKey && !e.ctrlKey && e.key.length === 1;
+}
+
+function isCellEditable(
+  cell: Cell,
+  row: DataRow,
+  columnDef: LeafColumn,
+): boolean {
+  if (typeof columnDef.editable === "function") {
+    return columnDef.editable({
+      data: row,
+      rowIndex: cell.rowIndex,
+      value: row[columnDef.field],
+    });
+  }
+  return columnDef.editable;
+}
+
+function isPointerEvent(
+  event: ReactPointerEvent | MouseEvent,
+): event is ReactPointerEvent {
+  return event.type.startsWith("pointer");
 }
