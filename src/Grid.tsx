@@ -12,6 +12,7 @@ import {
   type SyntheticEvent,
   useRef,
   useState,
+  useImperativeHandle,
 } from "react";
 import {
   Body,
@@ -25,6 +26,7 @@ import { Header } from "./Header";
 import { Filter, type FiltererProps } from "./Filter";
 import type { SortState } from "./Sorter";
 import { type EditorProps, InputEditor } from "./editors/InputEditor";
+import { copy } from "./utils/clipboard";
 
 type RefCallback<T> = (instance: T | null) => void;
 export type NonEmptyArray<T> = [T, ...T[]];
@@ -49,6 +51,7 @@ export type DataRow = Record<string, unknown>;
 type EditorComponent = <T extends EditorProps>(
   args: unknown,
 ) => (props: T) => ReactNode;
+
 export interface ColumnDef {
   allowEditCellOverflow?: boolean;
   ariaCellLabel?: AriaCellLabel;
@@ -143,13 +146,43 @@ export interface HandleDoublePointerDownArgs {
   defaultHandler: () => void;
 }
 
+export interface HandleHeaderPointerDownArgs {
+  e: ReactPointerEvent<HTMLDivElement>;
+  columnDef: ColumnDefWithDefaults;
+  columnIndexEnd: number;
+  columnIndexStart: number;
+  defaultHandler: () => void;
+  rowIndexEnd: number;
+  rowIndexStart: number;
+}
+
+export interface UserStyles {
+  cell?:
+    | { base?: CSSProperties }
+    | ((
+        rowData: DataRow,
+        columnDef: LeafColumn,
+        rowIndex: number,
+        columnIndex: number,
+      ) => { base?: CSSProperties });
+  container?: CSSProperties;
+}
+
+export interface GridRef extends Partial<HTMLDivElement> {
+  copy: (
+    data: DataRow[],
+    leafColumns: LeafColumn[],
+    selectedRanges: Range[],
+  ) => void;
+}
+
 interface GridProps {
   body?: (
     leafColumns: LeafColumn[],
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     visibleStartColumn: number,
     visibleEndColumn: number,
-    styles: CSSProperties,
+    styles: { computed: CSSProperties; user?: UserStyles },
     height: number,
     canvasWidth: string,
     headerViewportRef: RefObject<HTMLDivElement | null>,
@@ -170,6 +203,7 @@ interface GridProps {
     event: MouseEvent;
     defaultHandler: () => void;
   }) => void;
+  handleHeaderPointerDown?: (args: HandleHeaderPointerDownArgs) => void;
   handleDoublePointerDown?: (args: HandleDoublePointerDownArgs) => void;
   handleEdit?: (
     editRows: { [key: string]: DataRow },
@@ -215,22 +249,13 @@ interface GridProps {
   id?: string;
   overscanColumns?: number;
   overscanRows?: number;
+  ref?: RefObject<GridRef | null>;
   rowHeight?: number;
   rowId?: string;
   selectedRanges?: IndexedArray<Range>;
   selectionFollowsFocus?: boolean;
   showSelectionBox?: boolean;
-  styles?: {
-    cell?:
-      | CSSProperties
-      | ((
-          rowData: DataRow,
-          columnDef: LeafColumn,
-          rowIndex: number,
-          columnIndex: number,
-        ) => { base?: CSSProperties });
-    container?: CSSProperties;
-  };
+  styles?: UserStyles;
   virtual?: "columns" | "rows" | boolean;
 }
 
@@ -240,7 +265,7 @@ export function Grid({
     positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>,
     visibleStartColumn: number,
     visibleEndColumn: number,
-    styles: CSSProperties,
+    styles: { computed: CSSProperties; user?: UserStyles },
     height: number,
     canvasWidth: string,
     headerViewportRef: RefObject<HTMLDivElement | null>,
@@ -292,13 +317,14 @@ export function Grid({
   focusedCell,
   gap = { columnGap: 1, rowGap: 1 },
   handleContextMenu = noop,
-  handleDoublePointerDown = invokeDefaultHanlder,
+  handleDoublePointerDown = invokeDefaultHandler,
   handleEdit = noop,
   handleEditCellChange = noop,
   handleFocusedCellChange = noop,
   handleFilter = noop,
-  handleKeyDown = invokeDefaultHanlder,
-  handlePointerDown = invokeDefaultHanlder,
+  handleHeaderPointerDown = invokeDefaultHandler,
+  handleKeyDown = invokeDefaultHandler,
+  handlePointerDown = invokeDefaultHandler,
   handleResize = noop,
   handleSelection,
   handleSort = noop,
@@ -317,6 +343,7 @@ export function Grid({
       columnDefs={colDefs}
       filters={filters}
       handleFilter={handleFilter}
+      handlePointerDown={handleHeaderPointerDown}
       handleResize={handleResize}
       handleSort={handleSort}
       leafColumns={leafColumns}
@@ -331,6 +358,7 @@ export function Grid({
   id,
   overscanColumns = 3,
   overscanRows = 3,
+  ref,
   rowHeight,
   rowId,
   selectedRanges = [],
@@ -343,6 +371,7 @@ export function Grid({
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const [visibleStartColumn, setVisibleStartColumn] = useState<number>(0);
   const [height, setHeight] = useState<number>(0);
+  useImperativeHandle(ref, () => ({ copy }));
   const sizeRef = (node: HTMLDivElement) => {
     const ro = new ResizeObserver(([entry]) => {
       if (entry) {
@@ -424,7 +453,7 @@ export function Grid({
         positions,
         visibleStartColumn,
         visibleEndColumn,
-        computedStyles,
+        { computed: computedStyles, user: styles },
         height,
         canvasWidth,
         headerViewportRef,
@@ -736,7 +765,7 @@ function noop() {}
 interface DefaultHandlerArgs {
   defaultHandler: () => void;
 }
-function invokeDefaultHanlder({ defaultHandler }: DefaultHandlerArgs) {
+export function invokeDefaultHandler({ defaultHandler }: DefaultHandlerArgs) {
   return defaultHandler();
 }
 

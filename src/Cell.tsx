@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { ColumnDefWithDefaults, LeafColumn, Position } from "./Grid";
 
 interface CellProps {
@@ -17,6 +17,19 @@ interface CellProps {
   selected: boolean;
   startColumnIndex: number;
   startRowIndex: number;
+  styles:
+    | {
+        base?: CSSProperties;
+        edited?: CSSProperties;
+        focused?: CSSProperties;
+        selected?: CSSProperties;
+      }
+    | ((children: ReactNode) => {
+        base?: CSSProperties;
+        edited?: CSSProperties;
+        focused?: CSSProperties;
+        selected?: CSSProperties;
+      });
   virtualRowIndex: number;
 }
 
@@ -37,6 +50,7 @@ export function Cell({
   selected = false,
   startColumnIndex,
   startRowIndex,
+  styles,
   virtualRowIndex,
 }: CellProps) {
   if (position === undefined) {
@@ -46,6 +60,7 @@ export function Cell({
   const columnSpan =
     endColumnIndex - startColumnIndex - (columnIndex - startColumnIndex);
   const rowSpan = endRowIndex - startRowIndex + 1 - (rowIndex - startRowIndex);
+  const userStyles = typeof styles === "function" ? styles(children) : styles;
   return (
     <div
       aria-label={ariaLabel}
@@ -58,6 +73,10 @@ export function Cell({
       data-row-end-idx={endRowIndex}
       role="gridcell"
       style={{
+        ...userStyles.base,
+        ...(selected ? userStyles.selected : {}),
+        ...(isFocused ? userStyles.focused : {}),
+        ...(isEditing ? userStyles.edited : {}),
         gridColumnStart: position.pinnedIndex,
         gridColumnEnd: position.pinnedIndexEnd + columnSpan,
         gridRowStart: virtualRowIndex + 1,

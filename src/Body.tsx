@@ -24,7 +24,9 @@ import {
   type LeafColumn,
   type Point,
   type Position,
+  type UserStyles,
 } from "./Grid";
+import { copy } from "./utils/clipboard";
 
 export interface Cell {
   columnIndex: number;
@@ -90,7 +92,10 @@ interface BodyProps {
     setVisibleStartColumn: Dispatch<SetStateAction<number>>;
   };
   showSelectionBox?: boolean;
-  styles: CSSProperties;
+  styles: {
+    computed: CSSProperties;
+    user?: UserStyles;
+  };
   virtual: "columns" | "rows" | boolean;
   visibleColumnEnd: number;
   visibleColumnStart: number;
@@ -149,6 +154,10 @@ export function Body({
   const [endDragPoint, setEndDragPoint] = useState<Point | undefined>(
     undefined,
   );
+
+  // useImperativeHandle(headerViewportRef, () => ({
+  // handleCopy,
+  // }));
 
   // NOTE: there are few cases where we could skip the useEffect and calculate the viewport height based on styles + math
   useEffect(() => {
@@ -371,10 +380,7 @@ export function Body({
 
   function handleCopy() {
     // TODO: Enhance copy matrix to account for spanned cells
-    const str = getCopyMatrix(data, leafColumns, selectedRanges)
-      .map((row) => row.join("\t"))
-      .join("\n");
-    navigator.clipboard.writeText(str);
+    copy(data, leafColumns, selectedRanges);
   }
 
   function handleEvent(
@@ -887,7 +893,7 @@ export function Body({
   };
 
   const pinnedStyles: CSSProperties = {
-    ...styles,
+    ...styles.computed,
     backgroundColor: "var(--background-color)",
     display: "grid",
     gridAutoRows: rowHeight,
@@ -903,7 +909,7 @@ export function Body({
   };
 
   const unpinnedStyles: CSSProperties = {
-    ...styles,
+    ...styles.computed,
     display: "grid",
     gridAutoRows: rowHeight,
     gridColumn: `${pinnedStartLeafColumns.length + 1} / ${
@@ -1044,7 +1050,7 @@ export function Body({
                   height: `${rowHeight * visibleRows.length + rowGap * visibleRows.length - 1}px`,
                 }
               : {}),
-            ...styles,
+            ...styles.computed,
           }}
         >
           {pinnedStartLeafColumns.length > 0 ||
@@ -1180,6 +1186,17 @@ export function Body({
                             })}
                             startColumnIndex={startColumnIndex}
                             startRowIndex={startRowIndex}
+                            styles={
+                              typeof styles.user?.cell === "function"
+                                ? styles.user.cell.bind(
+                                    undefined,
+                                    row,
+                                    colDef,
+                                    rowIndex,
+                                    columnIndex,
+                                  )
+                                : (styles.user?.cell ?? {})
+                            }
                             virtualRowIndex={relativeRowIndex}
                           >
                             {isEditing && Editor ? (
@@ -1345,6 +1362,17 @@ export function Body({
                           })}
                           startColumnIndex={startColumnIndex}
                           startRowIndex={startRowIndex}
+                          styles={
+                            typeof styles.user?.cell === "function"
+                              ? styles.user.cell.bind(
+                                  undefined,
+                                  row,
+                                  colDef,
+                                  rowIndex,
+                                  colIndex,
+                                )
+                              : (styles.user?.cell ?? {})
+                          }
                           virtualRowIndex={relativeRowIndex}
                         >
                           {isEditing && Editor ? (
@@ -1505,6 +1533,17 @@ export function Body({
                             })}
                             startColumnIndex={startColumnIndex}
                             startRowIndex={startRowIndex}
+                            styles={
+                              typeof styles.user?.cell === "function"
+                                ? styles.user.cell.bind(
+                                    undefined,
+                                    row,
+                                    colDef,
+                                    rowIndex,
+                                    colIndex,
+                                  )
+                                : (styles.user?.cell ?? {})
+                            }
                             virtualRowIndex={relativeRowIndex}
                           >
                             {isEditing && Editor ? (
@@ -1670,6 +1709,17 @@ export function Body({
                       })}
                       startColumnIndex={startColumnIndex}
                       startRowIndex={startRowIndex}
+                      styles={
+                        typeof styles.user?.cell === "function"
+                          ? styles.user.cell.bind(
+                              undefined,
+                              row,
+                              columnDefForSpan,
+                              rowIndex,
+                              columnIndex,
+                            )
+                          : (styles.user?.cell ?? {})
+                      }
                       virtualRowIndex={relativeRowIndex}
                     >
                       {isEditing && Editor ? (
@@ -1918,77 +1968,6 @@ function getExpandedSelectionRangeOnKey(
   return r;
 }
 
-function getCopyMatrix(
-  data: DataRow[],
-  leafColumns: LeafColumn[],
-  selectedRanges: IndexedArray<Range>,
-): unknown[][] {
-  if (selectedRanges === null || selectedRanges.length === 0) {
-    return [];
-  }
-
-  const mergedRange = getMergedRangeFromRanges(selectedRanges);
-  const [numRows, numCols] = mergedRange.shape();
-  const matrix = Array.from(Array(numRows + 1), () =>
-    new Array(numCols + 1).fill("\\0"),
-  );
-
-  for (let row = mergedRange.fromRow; row <= mergedRange.toRow; row++) {
-    const dataRow = data[row];
-    const rowIndex = row - mergedRange.fromRow;
-
-    if (!dataRow) {
-      continue;
-    }
-
-    for (
-      let column = mergedRange.fromColumn;
-      column <= mergedRange.toColumn;
-      column++
-    ) {
-      const columnIndex = column - mergedRange.fromColumn;
-
-      // Don't write to matrix if cell is not selected
-      if (selectedRanges.every((range) => !range.contains(row, column))) {
-        continue;
-      }
-
-      const columnDef = leafColumns[column];
-
-      if (!columnDef || !matrix[rowIndex]) {
-        continue;
-      }
-
-      // TODO: Verify valueGetter design
-      // if (columnDef?.valueGetter) {
-      // matrix[rowIndex][columnIndex] = columnDef.valueGetter({
-      // colDef: columnDef,
-      // data: dataRow,
-      // value: dataRow[columnDef.field],
-      // });
-      // continue;
-      // }
-
-      if (columnDef?.valueRenderer) {
-        const renderedValue = columnDef.valueRenderer({
-          columnDef,
-          data: dataRow,
-          value: dataRow[columnDef.field],
-        });
-
-        if (typeof renderedValue !== "object") {
-          matrix[rowIndex][columnIndex] = renderedValue;
-          continue;
-        }
-      }
-
-      matrix[rowIndex][columnIndex] = dataRow[columnDef.field] ?? "";
-    }
-  }
-
-  return matrix;
-}
-
 function createPasteMatrix(s: string): string[][] {
   return s.split("\n").map((row: string) => row.split("\t"));
 }
@@ -2116,15 +2095,6 @@ function getEditRowsFromPasteMatrix(
 
 function isNullLikeCharacter(char: string): boolean {
   return char === "\\0";
-}
-
-function getMergedRangeFromRanges(ranges: IndexedArray<Range>): Range {
-  return ranges
-    .slice(1)
-    .reduce(
-      (merged: Range, range: Range) => merged.merge(range),
-      ranges[0] as Range,
-    );
 }
 
 function isKeyboardEvent(

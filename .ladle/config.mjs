@@ -23,5 +23,6 @@ export default {
     "editing--overflow-editors",
     "editing--pinned-and-spanned",
     "events--context-menu",
+    "events--column-selection",
   ],
 };

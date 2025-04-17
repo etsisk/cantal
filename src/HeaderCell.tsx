@@ -60,7 +60,11 @@ export function HeaderCell({
           : columnDef.ariaHeaderCellLabel
       }
       className="cantal-headercell"
+      data-column-end={position.pinnedIndexEnd}
+      data-column-start={position.pinnedIndex}
       data-field={columnDef.field}
+      data-row-end={position.depth + 1}
+      data-row-start={position.level + 1}
       ref={ref}
       role="columnheader"
       style={{
@@ -168,7 +172,18 @@ function isNonEmptyArray<Type>(arr: Type[]): arr is NonEmptyArray<Type> {
 }
 
 function isFn(
-  maybeFn: string | ((...args: unknown[]) => string),
-): maybeFn is (...args: unknown[]) => string {
+  maybeFn:
+    | string
+    | (({
+        def,
+        position,
+      }: {
+        def: ColumnDefWithDefaults;
+        position: Position;
+      }) => string),
+): maybeFn is (args: {
+  def: ColumnDefWithDefaults;
+  position: Position;
+}) => string {
   return typeof maybeFn === "function";
 }

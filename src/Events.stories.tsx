@@ -2,9 +2,18 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useRef,
   useState,
 } from "react";
-import { Grid, type DataRow, type LeafColumn, type Point } from "./Grid";
+import {
+  getLeafColumns,
+  Grid,
+  type ColumnDefWithDefaults,
+  type DataRow,
+  type GridRef,
+  type LeafColumn,
+  type Point,
+} from "./Grid";
 import {
   type Cell,
   type EditCell,
@@ -12,7 +21,7 @@ import {
   range,
   type Range,
 } from "./Body";
-import { colDefs, data } from "./stories";
+import { colDefs, data, groupedColumnDefs } from "./stories";
 
 export default {
   meta: {
@@ -29,6 +38,7 @@ export function ContextMenu() {
   const [colorRanges, setColorRanges] = useState<
     { color: string; range: Range }[]
   >([]);
+  const gridRef = useRef<GridRef | null>(null);
   const defs = colDefs
     .slice(0, 2)
     .concat(colDefs.slice(4, 7))
@@ -60,8 +70,10 @@ export function ContextMenu() {
     setGridData(newData);
   }
 
+  const leafColumns = getLeafColumns(defs);
+
   return (
-    <div style={{ position: "relative" }}>
+    <div>
       <Grid
         columnDefs={defs}
         data={gridData}
@@ -70,8 +82,8 @@ export function ContextMenu() {
         handleContextMenu={({ event, defaultHandler }) => {
           event.preventDefault();
           setContextMenu({
-            x: event.clientX - 50,
-            y: event.clientY - 50,
+            x: event.pageX,
+            y: event.pageY,
           });
           defaultHandler();
         }}
@@ -88,6 +100,8 @@ export function ContextMenu() {
         handleSelection={(selectedRanges: Range[]) => {
           setSelectedRanges(selectedRanges);
         }}
+        id="my-grid"
+        ref={gridRef}
         selectedRanges={selectedRanges}
         styles={{
           cell: (
@@ -96,7 +110,7 @@ export function ContextMenu() {
             rowIndex: number,
             columnIndex: number,
           ) => {
-            let bgColor = "#fff";
+            let bgColor = "var(--cell-background-color)";
 
             for (let colorRange of colorRanges) {
               if (colorRange.range.contains(rowIndex, columnIndex)) {
@@ -116,8 +130,8 @@ export function ContextMenu() {
           <ul
             style={{
               listStyle: "none",
-              marginBlock: "0.5rem",
-              paddingInline: "1rem",
+              marginBlock: "0.25rem",
+              paddingInline: 0,
             }}
           >
             <li>
@@ -125,12 +139,37 @@ export function ContextMenu() {
                 onClick={() => {
                   setColorRanges((prev) =>
                     prev.concat([
-                      { color: "#80ff00", range: selectedRanges[0] as Range },
+                      { color: "#5cb800", range: selectedRanges[0] as Range },
                     ]),
                   );
+                  setContextMenu(undefined);
+                }}
+                style={{
+                  appearance: "none",
+                  background: "transparent",
+                  border: 0,
+                  fontSize: "1rem",
+                  width: "100%",
                 }}
               >
                 Green
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => {
+                  gridRef.current?.copy(gridData, leafColumns, selectedRanges);
+                  setContextMenu(undefined);
+                }}
+                style={{
+                  appearance: "none",
+                  background: "transparent",
+                  border: 0,
+                  fontSize: "1rem",
+                  width: "100%",
+                }}
+              >
+                Copy
               </button>
             </li>
           </ul>
@@ -173,15 +212,47 @@ function CtxMenu({ children, position, reset }: CtxMenuProps) {
 
   return (
     <div
+      className="ladle-ctx-menu"
       ref={ref}
       style={{
-        backgroundColor: "burlywood",
+        backgroundColor: "gainsboro",
         insetBlockStart: position.y,
         insetInlineStart: position.x,
         position: "absolute",
+        width: "8rem",
       }}
     >
       {children}
     </div>
+  );
+}
+
+export function ColumnSelection() {
+  const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
+  const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
+
+  function handleHeaderPointerDown({
+    columnIndexEnd,
+    columnIndexStart,
+  }: {
+    columnIndexEnd: number;
+    columnIndexStart: number;
+  }) {
+    setFocusedCell({ columnIndex: columnIndexStart - 1, rowIndex: 0 });
+    setSelectedRanges([
+      range(0, columnIndexStart - 1, data.length - 1, columnIndexEnd - 2),
+    ]);
+  }
+  return (
+    <>
+      <h1>Header click column selection</h1>
+      <Grid
+        columnDefs={groupedColumnDefs}
+        data={data}
+        focusedCell={focusedCell}
+        handleHeaderPointerDown={handleHeaderPointerDown}
+        selectedRanges={selectedRanges}
+      />
+    </>
   );
 }

@@ -1,7 +1,13 @@
-import type { CSSProperties, PointerEvent } from "react";
+import type {
+  CSSProperties,
+  PointerEvent as ReactPointerEvent,
+  SyntheticEvent,
+} from "react";
 import {
   type ColumnDefWithDefaults,
   getLeafColumns,
+  type HandleHeaderPointerDownArgs,
+  invokeDefaultHandler,
   type LeafColumn,
   type Position,
 } from "./Grid";
@@ -12,6 +18,7 @@ interface HeaderProps {
   columnDefs: ColumnDefWithDefaults[];
   filters: { [key: string]: string };
   handleFilter: (field: string, value: string) => void;
+  handlePointerDown: (args: HandleHeaderPointerDownArgs) => void;
   handleResize: (
     field: string,
     value: number,
@@ -19,7 +26,7 @@ interface HeaderProps {
   ) => void;
   handleSort: (
     nextSortMode: { [key: string]: string } | undefined,
-    e: PointerEvent<HTMLButtonElement>,
+    e: ReactPointerEvent<HTMLButtonElement>,
   ) => void;
   leafColumns: LeafColumn[];
   positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>;
@@ -44,6 +51,7 @@ export function Header({
   styles,
   visibleColumnEnd,
   visibleColumnStart,
+  ...props
 }: HeaderProps) {
   const pinnedStartLeafColumns = leafColumns.filter(
     (def) => def.pinned === "start",
@@ -99,6 +107,41 @@ export function Header({
       });
       handleResize(columnDef.field, width, resizedColumnDefs);
     }
+  }
+
+  function handleEvent(
+    event: ReactPointerEvent<HTMLDivElement>,
+    eventName: string,
+  ) {
+    const { columnEnd, columnStart, field, rowEnd, rowStart } =
+      getAttributeFromHeaderEvent(event, [
+        "column-end",
+        "column-start",
+        "field",
+        "row-end",
+        "row-start",
+      ]);
+    if (field === undefined || field === null) {
+      return;
+    }
+    const columnDef = findColumnDefByField(columnDefs, field);
+    if (columnDef === undefined) {
+      return;
+    }
+    const namedFunction = eventName.replace("on", "handle");
+    const handler = isHandler(props, namedFunction)
+      ? props[namedFunction]
+      : invokeDefaultHandler;
+
+    handler?.({
+      columnDef,
+      columnIndexEnd: Number(columnEnd),
+      columnIndexStart: Number(columnStart),
+      defaultHandler: () => {},
+      e: event,
+      rowIndexEnd: Number(rowEnd),
+      rowIndexStart: Number(rowStart),
+    });
   }
 
   function replaceColumn(
@@ -191,7 +234,11 @@ export function Header({
   return (
     <div className="cantal-header-viewport" ref={ref} style={viewportStyles}>
       <div className="cantal-header-canvas" style={canvasStyles}>
-        <div className="cantal-header" style={{ display: "grid", ...styles }}>
+        <div
+          className="cantal-header"
+          onPointerDown={(e) => handleEvent(e, "onPointerDown")}
+          style={{ display: "grid", ...styles }}
+        >
           {pinnedStartLeafColumns.length > 0 ||
           pinnedEndLeafColumns.length > 0 ? (
             <>
@@ -314,4 +361,64 @@ function getFlattenedColumns(leafColumns: LeafColumn[]) {
     flattenedColumns.push(leafColumn);
   }
   return flattenedColumns;
+}
+
+function getAttributeFromHeaderEvent(
+  event: SyntheticEvent | PointerEvent,
+  attr: string[],
+): { [key: (typeof attr)[number]]: string } {
+  const target = event.target;
+  if (target instanceof HTMLElement) {
+    const headerCell = target?.closest('[role="columnheader"]');
+    const attributesWithValues = attr.reduce(
+      (acc: { [key: (typeof attr)[number]]: string }, attribute) => {
+        const value = headerCell?.getAttribute(`data-${attribute}`);
+        if (value !== undefined && value !== null) {
+          acc[kebabToCamelCase(attribute)] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+    return attributesWithValues;
+  }
+  return {};
+}
+
+function kebabToCamelCase(str: string): string {
+  return str
+    .split("-")
+    .map((w: string, i: number) => {
+      if (i === 0) {
+        return w;
+      }
+      return w.at(0)?.toUpperCase() + w.slice(1);
+    })
+    .join("");
+}
+
+function findColumnDefByField(
+  columnDefs: (ColumnDefWithDefaults | LeafColumn)[],
+  field: string,
+): ColumnDefWithDefaults | LeafColumn | undefined {
+  for (let def of columnDefs) {
+    if (def.field === field) {
+      return def;
+    }
+
+    if (def.subcolumns && def.subcolumns.length > 0) {
+      const result = findColumnDefByField(def.subcolumns, field);
+      if (result) {
+        return result;
+      }
+    }
+  }
+  return undefined;
+}
+
+function isHandler<X extends {}, Y extends PropertyKey>(
+  obj: X,
+  prop: Y,
+): obj is X & Record<Y, HeaderProps["handlePointerDown"]> {
+  return obj.hasOwnProperty(prop);
 }
