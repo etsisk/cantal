@@ -24,5 +24,6 @@ export default {
     "editing--pinned-and-spanned",
     "events--context-menu",
     "events--column-selection",
+    "events--synced-scrolling",
   ],
 };

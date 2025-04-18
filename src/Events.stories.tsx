@@ -256,3 +256,82 @@ export function ColumnSelection() {
     </>
   );
 }
+
+export function SyncedScrolling() {
+  const scrollLock = useRef<string | null>(null);
+  const leftGridRef = useRef<GridRef | null>(null);
+  const rightGridRef = useRef<GridRef | null>(null);
+
+  function handleLeftScroll({
+    viewportElement,
+  }: {
+    viewportElement: HTMLDivElement;
+  }) {
+    if (scrollLock.current === "right") {
+      scrollLock.current = null;
+    } else {
+      scrollLock.current = "left";
+      // rightGridRef.current?.getViewportElement().scrollTop = viewportElement.scrollTop;
+      const viewport = document
+        .getElementById("right-grid")
+        ?.querySelector(".cantal-body-viewport");
+      if (viewport) {
+        viewport.scrollTop = viewportElement.scrollTop;
+      }
+    }
+  }
+
+  function handleRightScroll({
+    viewportElement,
+  }: {
+    viewportElement: HTMLDivElement;
+  }) {
+    if (scrollLock.current === "left") {
+      scrollLock.current = null;
+    } else {
+      scrollLock.current = "right";
+      // leftGridRef.current?.getViewportElement().scrollTop = viewportElement.scrollTop;
+      const viewport = document
+        .getElementById("left-grid")
+        ?.querySelector(".cantal-body-viewport");
+      if (viewport) {
+        viewport.scrollTop = viewportElement.scrollTop;
+      }
+    }
+  }
+  return (
+    <>
+      <h1>Synced scrolling</h1>
+      <div style={{ display: "flex" }}>
+        <Grid
+          columnDefs={colDefs.slice(0, 16)}
+          data={data}
+          handleScroll={handleLeftScroll}
+          id="left-grid"
+          ref={leftGridRef}
+          styles={{
+            container: {
+              height: 300,
+              width: 500,
+            },
+          }}
+          virtual={true}
+        />
+        <Grid
+          columnDefs={colDefs.slice(16)}
+          data={data}
+          handleScroll={handleRightScroll}
+          id="right-grid"
+          ref={rightGridRef}
+          styles={{
+            container: {
+              height: 300,
+              width: 500,
+            },
+          }}
+          virtual={true}
+        />
+      </div>
+    </>
+  );
+}

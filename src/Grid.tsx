@@ -10,6 +10,7 @@ import {
   type RefObject,
   type SetStateAction,
   type SyntheticEvent,
+  type UIEvent,
   useRef,
   useState,
   useImperativeHandle,
@@ -223,6 +224,13 @@ interface GridProps {
     value: number,
     columnDefs: ColumnDefWithDefaults[],
   ) => void;
+  handleScroll?: ({
+    event,
+    viewportElement,
+  }: {
+    event: UIEvent<HTMLDivElement>;
+    viewportElement: HTMLDivElement;
+  }) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
     endPoint: Point | undefined,
@@ -289,6 +297,7 @@ export function Grid({
       handleKeyDown={handleKeyDown}
       handlePointerDown={handlePointerDown}
       handleDoublePointerDown={handleDoublePointerDown}
+      handleScroll={handleScroll}
       handleSelection={handleSelection}
       headerViewportRef={headerViewportRef}
       leafColumns={leafColumns}
@@ -326,6 +335,7 @@ export function Grid({
   handleKeyDown = invokeDefaultHandler,
   handlePointerDown = invokeDefaultHandler,
   handleResize = noop,
+  handleScroll = noop,
   handleSelection,
   handleSort = noop,
   header = (

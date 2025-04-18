@@ -68,6 +68,13 @@ interface BodyProps {
   ) => void;
   handleKeyDown: (args: HandleKeyDownArgs) => void;
   handlePointerDown: (args: HandlePointerDownArgs) => void;
+  handleScroll: ({
+    event,
+    viewportElement,
+  }: {
+    event: UIEvent<HTMLDivElement>;
+    viewportElement: HTMLDivElement;
+  }) => void;
   handleSelection?: (
     selectedRanges: IndexedArray<Range>,
     endPoint: Point | undefined,
@@ -116,6 +123,7 @@ export function Body({
   handleFocusedCellChange,
   handleKeyDown,
   handlePointerDown,
+  handleScroll,
   handleSelection,
   headerViewportRef,
   leafColumns,
@@ -864,7 +872,7 @@ export function Body({
     }
   }
 
-  function handleScroll(e: UIEvent<HTMLDivElement>) {
+  function onScroll(e: UIEvent<HTMLDivElement>) {
     if (headerViewportRef.current) {
       headerViewportRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
@@ -876,6 +884,11 @@ export function Body({
       setState.setVisibleStartColumn(start);
       setState.setVisibleEndColumn(end);
     }
+
+    handleScroll({
+      event: e,
+      viewportElement: viewportRef.current,
+    });
   }
 
   const visibleColumns = spread(visibleColumnStart, visibleColumnEnd);
@@ -949,7 +962,7 @@ export function Body({
   return (
     <div
       className="cantal-body-viewport"
-      onScroll={handleScroll}
+      onScroll={onScroll}
       ref={viewportRef}
       style={viewportStyles}
     >
