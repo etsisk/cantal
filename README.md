@@ -1,0 +1,95 @@
+# Cantal
+
+## Overview
+
+Cantal is a lightweight but powerful grid library for React. Its primary responsibilities are rendering the layout of the grid and exposing grid events. It comes with sane defaults and it's highly customizable.
+
+## Motivation
+
+Cantal aims to offer the capabilities that come with an enterprise offering in a very lightweight package. You can kind of think of Cantal is a combination of the best parts of Tanstack Table and AG-Grid.
+
+## Features
+
+- Accessible
+- Custom styles
+- Column resizing
+- Multi-column sorting
+- Column filtering
+- Column grouping
+- Column pinning
+- Row spanning
+- Column spanning
+- Focus management
+- Cell, row, and range selection
+- Advanced copy / paste
+- Cell editing
+- Virtualization
+
+## Grid props
+
+| Prop name | Description |
+|-----------|-------------|
+| body      | A function that returns the body component |
+| columnDefs | An array of objects containing properties that determine the number of columns and their behavior. See the [**Column definitions**](#column-definitions) section below for details |
+| columnFilters | An object that tracks the state of each column's current filter value. The object keys represent the column and the values represent the filter value |
+| columnSorts | An object that tracks the state of each column's current sort mode. The object keys represent the column and the values represent the sort mode |
+| columnSpans | A reference to the key of the column spanning definitions on the row data object, e.g. "columnSpansKey" where the data object might look like `{ fieldA: 1, ..., columnSpansKey: [{ field: 'spanIdOrField', from: 0, to: 1 }] }`. See the [**Column spanning**](#column-spanning) section below for details  |
+| data | An array of objects where each object represents a row of data |
+| focusedCell | Represents the cell that currently has focus. TODO
+| gap | Defines the spacing (in pixels) between each cell. Accepts an integer or an object, e.g. `{ columnGap: 1, rowGap: 1 }` |
+| handleColumnFilter | Invoked when a column's filter control changes |
+| handleColumnResize | Invoked when a column's width is being resized. The new width value is in pixels |
+| handleColumnSort | Invoked when a column's sort mode is changed |
+| handleEdit | Invoked when a cell edit has been commited via a cell editor or a paste operation. An object keyed by the row id or row index and its changed values is passed as an argument |
+| handleEditCellChange | Invoked when a cell edit is started, commited, cancelled or when the editor value changes, depending on the editor |
+| handleFocusedCellChange | Invoked when focus changes cells |
+| handleKeyDown | Invoked when the <code>keydown</code> event fires on the grid body. Invoke <code>defaultHanlder</code> inside the function body to perform default grid behavior such as cell navigation or cell editing on printable characters |
+| handlePointerDown | Invoked when the <code>pointerdown</code> event fires on the grid body. Invoke <code>defaultHandler</code> inside the function body to perform default grid behavior such as changing cell focus and range selection |
+| handleSelection | Invoked when a selection event occurs using either the keyboard or pointer drag |
+| header | Accepts custom header components |
+| id | Sets the <code>id</code> attribute on the grid's container element |
+| overscanColumns | Number of columns to render to the left and right of grid viewport for virtualized grids |
+| overscanRows | Number of columns to render above and below the grid viewport for virtualized grids |
+| rowHeight | Row height in pixels |
+| rowId | A key whose value is unique to each row of data. It's used to indicate the changed rows in <code>handleEdit</code>. It's important to assign this to an immutable property in your data to ensure its row value remains unique. The index of the data array will be used if this prop isn't provided |
+| selectedRanges | An array of <code>Range</code> objects representing selected cells |
+| selectionFollowsFocus | Updates the selected range whenever <code>focusedCell</code> changes. This is especially useful for grids with row spanning as it will expand the selected ranges to fully enclose a spanned cell |
+| styles | An object representing the grid elements and their corresponding styles |
+| virtual | Renders only a subset of columns and/or rows based on the size of the grid viewport (and overscan props <code>overscanColumns</code> and <code>overscanRows</code>). Using this prop can have dramatic performance improvements for large datasets |
+
+## <a name="column-definitions"></a>Column definitions
+
+Column definitions determine a lot of the behavior of the grid. Below is a list of all the column definition properties Cantal knows about:
+
+| Key | Description |
+|-----|-------------|
+| allowEditCellOverflow | Allows the cell editor to overflow the cell boundary. This is particularly useful for editors that may require more space such as a <code>textarea</code> editor |
+| ariaCellLabel | Sets the `aria-label` attribute of the cells in the column |
+| ariaHeaderCellLabel | Sets the `aria-label` attribute of the column header cells |
+| cellClassNames | Adds class names to your cells based on their current state. Accepts an object or a function. See the [**styling story**](/?story=styling--classes) for details |
+| editable | Determines whether a cell is editable |
+| editor | Used for defining your own custom editor component that's displayed during edit mode |
+| field | A required property that's used to look up the value from the data row object |
+| filterable | Determines whether the filter control is displayed in the column header |
+| filterer | Used for defining your own custom filter component that's displayed in the column header |
+| headerCellClassNames | Adds custom classes to the various elements that comprise a header cell. Accepts an object or a function. See the [**styling story**](/?story=styling--classes) for details |
+| minWidth | Minimum width (in pixels) of the column
+| pinned | Determines whether a column is pinned to one side of the grid or the other |
+| resizable | Allows the column to be resized by rendering a resizer element in the column header |
+| rowSpanComparator | A function that compares adjacent cells in the same column and determines where row span boundaries lie |
+| rowSpanning | Determines whether a column has the ability to span rows |
+| sortable | Determines whether the sort control is displayed in the column header |
+| sortStates | The list of sort modes to cycle through when sorting a column |
+| subcolumns | The list of child column definitions that fall under the defining column definition |
+| title | The column header label text |
+| valueParser | Invoked when a cell edit is being commited or when a paste from the clipboard is performed |
+| valueRenderer | A function that's responsible for the rendered output of the cell |
+| width | Sets the initial width of the column |
+
+## Constraints
+
+CSS Grid layout is the underlying technology used to render your grid data. Browser impose a limits on the number of rows/columns one can render for a grid. Therefore, you'll likely see warnings if you're rendering cells in thousands. If you're attempting to render thousands of cells, it's recommended to use the `virtual` prop to improve performance by limiting the number of cells rendered at any given time.
+
+## <a name="column-spanning"></a>Column spanning
+
+Column spanning is one of the few features that is defined by a data row object.
