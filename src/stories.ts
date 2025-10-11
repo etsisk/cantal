@@ -1,4 +1,4 @@
-import type { ColumnDef } from "./Grid";
+import type { ColumnDef, DataRow } from "./Grid";
 
 export const colDefs: ColumnDef[] = [
   { field: "propertyId", title: "Property ID", width: 85 },
@@ -212,7 +212,7 @@ export const groupedColumnDefs: ColumnDef[] = [
   { field: "councilDistrict", title: "Council District" },
 ];
 
-export const data = [
+export const data: DataRow[] = [
   {
     propertyId: 6414481,
     propertyName: "Shore Hill Apartments",
@@ -260,7 +260,7 @@ export const data = [
   },
   {
     propertyId: 20067090,
-    propertyNam: "38-01 23rd Avenue",
+    propertyName: "38-01 23rd Avenue",
     bbl: "4-00805-0001",
     bin: 4436960,
     address: "38-01 23rd Avenue",
@@ -1714,7 +1714,10 @@ export const data = [
   },
 ];
 
-export function generateData(rows: number, columns: number) {
+export function generateData(
+  rows: number,
+  columns: number,
+): { data: { [key: string]: number }[]; colDefs: ColumnDef[] } {
   const data = [];
 
   for (let i = 0; i < rows; i++) {

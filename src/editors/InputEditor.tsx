@@ -2,6 +2,7 @@ import {
   type ChangeEvent,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactElement,
   useEffect,
   useRef,
 } from "react";
@@ -29,7 +30,7 @@ export function InputEditor({
   style = {},
   type = "text",
   value = "",
-}: InputEditorProps) {
+}: InputEditorProps): ReactElement {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ref.current) {

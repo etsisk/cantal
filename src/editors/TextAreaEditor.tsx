@@ -1,6 +1,7 @@
 import {
   type CSSProperties,
   type KeyboardEvent,
+  type ReactElement,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useRef,
@@ -18,7 +19,7 @@ export function TextAreaEditor({
   rows = 3,
   style = {},
   value = "",
-}: TextAreaEditorProps) {
+}: TextAreaEditorProps): ReactElement {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (ref.current) {

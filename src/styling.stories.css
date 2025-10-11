@@ -1,0 +1,69 @@
+#grid .container-zip {
+  background-color: paleturquoise;
+}
+
+#grid .cantal-header-pinned-start .container-zip {
+  background-color: pink;
+}
+
+#grid .cantal-header-pinned-end .container-zip {
+  background-color: tomato;
+}
+
+#grid .label-1 {
+  font-weight: 600;
+}
+
+#grid .container-propertyName .label-1 {
+  color: forestgreen;
+  font-weight: 200;
+}
+
+#grid .cantal-header-pinned-end .container-zip .label-1 {
+  color: white;
+}
+
+#grid .container-address .cantal-headercell-filter {
+  border-style: dashed;
+}
+
+#grid .custom-base {
+  color: navy;
+}
+
+#grid .cantal-cell-pinned-start.custom-base {
+  color: orangered;
+}
+
+#grid .cantal-cell-pinned-end.custom-base {
+  color: darkgoldenrod;
+}
+
+#grid .custom-edited {
+  background-color: lightgreen;
+}
+
+#grid .custom-focused {
+  background-color: lightsalmon;
+  font-style: italic;
+}
+
+#grid .custom-selected {
+  background-color: lightcoral;
+  font-family: -apple-system-footnote;
+}
+
+#grid .custom-focused.custom-selected {
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  #grid .container-zip {
+    background-color: paleturquoise;
+    color: black;
+  }
+
+  #grid .custom-base {
+    color: lightgrey;
+  }
+}

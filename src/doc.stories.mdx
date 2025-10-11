@@ -70,11 +70,13 @@ Column definitions determine a lot of the behavior of the grid. Below is a list 
 | allowEditCellOverflow | Allows the cell editor to overflow the cell boundary. This is particularly useful for editors that may require more space such as a <code>textarea</code> editor |
 | ariaCellLabel | Sets the `aria-label` attribute of the cells in the column |
 | ariaHeaderCellLabel | Sets the `aria-label` attribute of the column header cells |
+| cellClassNames | Adds class names to your cells based on their current state. Accepts an object or a function. See the [**styling story**](/?story=styling--classes) for details |
 | editable | Determines whether a cell is editable |
 | editor | Used for defining your own custom editor component that's displayed during edit mode |
 | field | A required property that's used to look up the value from the data row object |
 | filterable | Determines whether the filter control is displayed in the column header |
 | filterer | Used for defining your own custom filter component that's displayed in the column header |
+| headerCellClassNames | Adds custom classes to the various elements that comprise a header cell. Accepts an object or a function. See the [**styling story**](/?story=styling--classes) for details |
 | minWidth | Minimum width (in pixels) of the column
 | pinned | Determines whether a column is pinned to one side of the grid or the other |
 | resizable | Allows the column to be resized by rendering a resizer element in the column header |

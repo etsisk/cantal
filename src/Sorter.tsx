@@ -1,4 +1,4 @@
-import type { PointerEvent } from "react";
+import type { PointerEvent, ReactElement } from "react";
 
 export interface SortState {
   iterable?: boolean;
@@ -12,7 +12,11 @@ interface SorterProps {
   state: SortState;
 }
 
-export function Sorter({ className, handleSort, state }: SorterProps) {
+export function Sorter({
+  className,
+  handleSort,
+  state,
+}: SorterProps): ReactElement {
   function handlePointerUp(e: PointerEvent<HTMLButtonElement>) {
     e.stopPropagation();
     handleSort(e);

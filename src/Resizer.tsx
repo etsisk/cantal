@@ -1,9 +1,10 @@
 import {
   type CSSProperties,
+  type ReactElement,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useState,
-} from 'react';
+} from "react";
 
 interface ResizerProps {
   className?: string;
@@ -19,7 +20,7 @@ export function Resizer({
   handleResizeEnd,
   handleResizeStart,
   style = {},
-}: ResizerProps) {
+}: ResizerProps): ReactElement {
   const [dragStarted, setDragStarted] = useState<boolean>(false);
   const [dragStartPosition, setDragStartPosition] = useState<number | null>(
     null,
@@ -54,13 +55,13 @@ export function Resizer({
 
   useEffect(() => {
     if (dragStarted) {
-      document.addEventListener('pointermove', handlePointerMove);
-      document.addEventListener('pointerup', handlePointerUp);
+      document.addEventListener("pointermove", handlePointerMove);
+      document.addEventListener("pointerup", handlePointerUp);
     }
 
     return function cleanup() {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerUp);
     };
   }, [dragStarted]);
 
@@ -72,4 +73,3 @@ export function Resizer({
     ></div>
   );
 }
-

@@ -1,10 +1,24 @@
-import { type FC, type PointerEvent, useRef, useState } from "react";
+import {
+  type FC,
+  type PointerEvent,
+  type ReactElement,
+  useRef,
+  useState,
+} from "react";
 import type { ColumnDefWithDefaults, NonEmptyArray, Position } from "./Grid";
 import { Resizer } from "./Resizer";
 import { Sorter, type SortState } from "./Sorter";
 import type { FiltererProps } from "./Filter";
 
 interface HeaderCellProps {
+  classNames?: {
+    container?: string;
+    content?: string;
+    filter?: string;
+    label?: string;
+    resizer?: string;
+    sorter?: string;
+  };
   columnDef: ColumnDefWithDefaults;
   filters: { [key: string]: string };
   filterer: FC<FiltererProps> | null;
@@ -23,6 +37,7 @@ interface HeaderCellProps {
 }
 
 export function HeaderCell({
+  classNames,
   columnDef,
   filterer: Filter = null,
   filters,
@@ -31,7 +46,7 @@ export function HeaderCell({
   handleSort,
   position,
   sorts,
-}: HeaderCellProps) {
+}: HeaderCellProps): ReactElement | null {
   const [width, setWidth] = useState<number>(0);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -59,7 +74,7 @@ export function HeaderCell({
           ? columnDef.ariaHeaderCellLabel({ def: columnDef, position })
           : columnDef.ariaHeaderCellLabel
       }
-      className="cantal-headercell"
+      className={`cantal-headercell${classNames?.container ? ` ${classNames.container}` : ""}`}
       data-column-end={position.pinnedIndexEnd}
       data-column-start={position.pinnedIndex}
       data-field={columnDef.field}
@@ -75,15 +90,19 @@ export function HeaderCell({
         position: columnDef.resizable ? "sticky" : "static",
       }}
     >
-      <div className="cantal-headercell-content">
-        <div className="cantal-headercell-label">
+      <div
+        className={`cantal-headercell-content${classNames?.content ? ` ${classNames.content}` : ""}`}
+      >
+        <div
+          className={`cantal-headercell-label${classNames?.label ? ` ${classNames.label}` : ""}`}
+        >
           {columnDef.sortable && columnDef.sortStates.length ? (
             <>
               <span className="cantal-headercell-label-text">
                 {columnDef.title}
               </span>
               <Sorter
-                className="cantal-headercell-sorter"
+                className={`cantal-headercell-sorter${classNames?.sorter ? ` ${classNames.sorter}` : ""}`}
                 handleSort={(e) =>
                   handleSort(
                     updateSorts(columnDef.field, sorts, columnDef.sortStates),
@@ -99,6 +118,7 @@ export function HeaderCell({
         </div>
         {columnDef.filterable && Filter && (
           <Filter
+            className={`cantal-headercell-filter${classNames?.filter ? ` ${classNames.filter}` : ""}`}
             field={columnDef.field}
             handleFilter={handleFilter}
             value={filters[columnDef.field]}
@@ -107,7 +127,7 @@ export function HeaderCell({
       </div>
       {columnDef.resizable && (
         <Resizer
-          className="cantal-headercell-resizer"
+          className={`cantal-headercell-resizer${classNames?.resizer ? ` ${classNames.resizer}` : ""}`}
           handleResize={handleColumnResize}
           handleResizeEnd={() => setWidth(0)}
           handleResizeStart={() => {

@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactElement,
   type RefObject,
   type SetStateAction,
   type SyntheticEvent,
@@ -141,7 +142,7 @@ export function Body({
   virtual,
   visibleColumnEnd,
   visibleColumnStart,
-}: BodyProps) {
+}: BodyProps): ReactElement {
   const viewportRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   // QUESTION: Should `focusedCellRef` be defined here or on Grid.tsx?
@@ -885,10 +886,12 @@ export function Body({
       setState.setVisibleEndColumn(end);
     }
 
-    handleScroll({
-      event: e,
-      viewportElement: viewportRef.current,
-    });
+    if (viewportRef.current) {
+      handleScroll({
+        event: e,
+        viewportElement: viewportRef.current,
+      });
+    }
   }
 
   const visibleColumns = spread(visibleColumnStart, visibleColumnEnd);
@@ -1183,6 +1186,16 @@ export function Body({
                                   })
                                 : colDef.ariaCellLabel
                             }
+                            classNames={
+                              typeof colDef.cellClassNames === "function"
+                                ? colDef.cellClassNames(
+                                    row,
+                                    colDef,
+                                    rowIndex,
+                                    columnIndex,
+                                  )
+                                : colDef.cellClassNames
+                            }
                             columnDef={colDef}
                             columnIndex={columnIndex}
                             columnIndexRelative={relativeColumnIndex}
@@ -1359,6 +1372,16 @@ export function Body({
                                 })
                               : colDef.ariaCellLabel
                           }
+                          classNames={
+                            typeof colDef.cellClassNames === "function"
+                              ? colDef.cellClassNames(
+                                  row,
+                                  colDef,
+                                  rowIndex,
+                                  colIndex,
+                                )
+                              : colDef.cellClassNames
+                          }
                           columnDef={colDef}
                           columnIndex={colIndex}
                           columnIndexRelative={relativeColumnIndex}
@@ -1529,6 +1552,16 @@ export function Body({
                                     value: row[columnDef.field],
                                   })
                                 : colDef.ariaCellLabel
+                            }
+                            classNames={
+                              typeof colDef.cellClassNames === "function"
+                                ? colDef.cellClassNames(
+                                    row,
+                                    colDef,
+                                    rowIndex,
+                                    colIndex,
+                                  )
+                                : colDef.cellClassNames
                             }
                             columnDef={colDef}
                             columnIndex={colIndex}
@@ -1705,6 +1738,16 @@ export function Body({
                               value: row[columnDefForSpan.field],
                             })
                           : (columnDef.ariaCellLabel as string)
+                      }
+                      classNames={
+                        typeof columnDefForSpan.cellClassNames === "function"
+                          ? columnDefForSpan.cellClassNames(
+                              row,
+                              columnDefForSpan,
+                              rowIndex,
+                              columnIndex,
+                            )
+                          : columnDefForSpan.cellClassNames
                       }
                       columnDef={columnDefForSpan}
                       columnIndex={columnIndex}

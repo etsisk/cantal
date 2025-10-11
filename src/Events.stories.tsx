@@ -1,14 +1,14 @@
 import {
   type Dispatch,
+  type ReactElement,
   type ReactNode,
   type SetStateAction,
   useRef,
   useState,
 } from "react";
 import {
-  getLeafColumns,
+  getLeafColumnsFromColumnDefs as getLeafColumns,
   Grid,
-  type ColumnDefWithDefaults,
   type DataRow,
   type GridRef,
   type LeafColumn,
@@ -29,7 +29,7 @@ export default {
   },
 };
 
-export function ContextMenu() {
+export function ContextMenu(): ReactElement {
   const [gridData, setGridData] = useState(data);
   const [editCell, setEditCell] = useState<EditCell | undefined>(undefined);
   const [focusedCell, setFocusedCell] = useState<Cell | undefined>(undefined);
@@ -227,7 +227,7 @@ function CtxMenu({ children, position, reset }: CtxMenuProps) {
   );
 }
 
-export function ColumnSelection() {
+export function ColumnSelection(): ReactElement {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
 
@@ -257,7 +257,7 @@ export function ColumnSelection() {
   );
 }
 
-export function SyncedScrolling() {
+export function SyncedScrolling(): ReactElement {
   const scrollLock = useRef<string | null>(null);
   const leftGridRef = useRef<GridRef | null>(null);
   const rightGridRef = useRef<GridRef | null>(null);

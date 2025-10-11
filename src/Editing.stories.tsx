@@ -1,5 +1,10 @@
-import { useRef, useState } from "react";
-import { type DataRow, getLeafColumns, Grid, type LeafColumn } from "./Grid";
+import { useRef, useState, type ReactElement } from "react";
+import {
+  type DataRow,
+  getLeafColumnsFromColumnDefs as getLeafColumns,
+  Grid,
+  type LeafColumn,
+} from "./Grid";
 import { type Cell, type EditCell, range, type Range } from "./Body";
 import { colDefs, data } from "./stories";
 import { TextAreaEditor } from "./editors/TextAreaEditor";
@@ -10,7 +15,7 @@ export default {
   },
 };
 
-export function Simple() {
+export function Simple(): ReactElement {
   const [gridData, setGridData] = useState(data);
   const [editCell, setEditCell] = useState<EditCell | undefined>(undefined);
   const [focusedCell, setFocusedCell] = useState<Cell | undefined>(undefined);
@@ -143,7 +148,7 @@ export function Simple() {
   );
 }
 
-export function OverflowEditors() {
+export function OverflowEditors(): ReactElement {
   const [gridData, setGridData] = useState(data.slice(0, 20));
   const [editCell, setEditCell] = useState<EditCell | undefined>(undefined);
   const [focusedCell, setFocusedCell] = useState<Cell | undefined>(undefined);
@@ -214,7 +219,7 @@ export function OverflowEditors() {
   );
 }
 
-export function PinnedAndSpanned() {
+export function PinnedAndSpanned(): ReactElement {
   const ref = useRef<HTMLFormElement>(null);
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const [selected, setSelected] = useState("");

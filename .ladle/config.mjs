@@ -25,5 +25,6 @@ export default {
     "events--context-menu",
     "events--column-selection",
     "events--synced-scrolling",
+    "styling--classes",
   ],
 };

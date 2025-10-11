@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
   useImperativeHandle,
+  type ReactElement,
 } from "react";
 import {
   Body,
@@ -57,11 +58,47 @@ export interface ColumnDef {
   allowEditCellOverflow?: boolean;
   ariaCellLabel?: AriaCellLabel;
   ariaHeaderCellLabel?: AriaHeaderCellLabel;
+  cellClassNames?:
+    | { base?: string; selected?: string; focused?: string; edited?: string }
+    | ((
+        row: DataRow,
+        columnDef: LeafColumn,
+        rowIndex: number,
+        columnIndex: number,
+      ) => {
+        base?: string;
+        selected?: string;
+        focused?: string;
+        edited?: string;
+      });
   editable?: Editable;
   editor?: EditorComponent;
   field: string;
   filterable?: boolean;
   filterer?: TFilterProps<FiltererProps>;
+  headerCellClassNames?:
+    | {
+        container?: string;
+        content?: string;
+        filter?: string;
+        label?: string;
+        resizer?: string;
+        sorter?: string;
+      }
+    | (({
+        columnDef,
+        position,
+      }: {
+        columnDef: LeafColumn | ColumnDefWithDefaults;
+        position?: Position;
+      }) => {
+        container?: string;
+        content?: string;
+        filter?: string;
+        label?: string;
+        resizer?: string;
+        sorter?: string;
+      });
   minWidth?: number;
   pinned?: "start" | "end";
   resizable?: boolean;
@@ -376,7 +413,7 @@ export function Grid({
   showSelectionBox,
   styles,
   virtual = false,
-}: GridProps) {
+}: GridProps): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const [visibleStartColumn, setVisibleStartColumn] = useState<number>(0);
@@ -572,20 +609,24 @@ export function applyColumnSpanDefDefaults(
   );
 }
 
-// TODO: Expose API to consumers
-export function getLeafColumns(
-  columnDefs: (ColumnDef | ColumnDefWithDefaults)[],
-  ancestors: (ColumnDef | ColumnDefWithDefaults)[] = [],
+export function getLeafColumnsFromColumnDefs(
+  columnDefs: ColumnDef[],
 ): LeafColumn[] {
-  // QUESTION: check if defs are of type ColumnDef (or don't)
-  // and applyDefaults since there's an assumption that LeafColumns are a bunch of columns with defaults
+  return getLeafColumns(applyColumnDefDefaults(columnDefs, columnDefDefaults));
+}
+
+// TODO: Expose API to consumers with defaults applied
+export function getLeafColumns(
+  columnDefs: ColumnDefWithDefaults[],
+  ancestors: ColumnDefWithDefaults[] = [],
+): LeafColumn[] {
   return columnDefs
     .map((def) => {
       if (def.subcolumns && def.subcolumns.length > 0) {
         const parents = [...ancestors, def];
         return getLeafColumns(def.subcolumns, parents);
       }
-      // TODO: throw column def warning if def.pinned is something other than 'start', 'end', undefined
+      // QUESTION: throw column def warning if def.pinned is something other than 'start', 'end', undefined
       if (ancestors.length > 0) {
         const parent = ancestors.at(-1);
         if (parent?.subcolumns?.some((d) => d.pinned !== def.pinned)) {
@@ -775,7 +816,9 @@ function noop() {}
 interface DefaultHandlerArgs {
   defaultHandler: () => void;
 }
-export function invokeDefaultHandler({ defaultHandler }: DefaultHandlerArgs) {
+export function invokeDefaultHandler({
+  defaultHandler,
+}: DefaultHandlerArgs): unknown {
   return defaultHandler();
 }
 

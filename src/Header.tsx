@@ -1,5 +1,6 @@
 import type {
   CSSProperties,
+  ReactElement,
   PointerEvent as ReactPointerEvent,
   SyntheticEvent,
 } from "react";
@@ -52,7 +53,7 @@ export function Header({
   visibleColumnEnd,
   visibleColumnStart,
   ...props
-}: HeaderProps) {
+}: HeaderProps): ReactElement {
   const pinnedStartLeafColumns = leafColumns.filter(
     (def) => def.pinned === "start",
   );
@@ -250,6 +251,14 @@ export function Header({
                   {getFlattenedColumns(pinnedStartLeafColumns).map(
                     (def: LeafColumn | ColumnDefWithDefaults) => (
                       <HeaderCell
+                        classNames={
+                          typeof def.headerCellClassNames === "function"
+                            ? def.headerCellClassNames({
+                                columnDef: def,
+                                position: positions.get(def),
+                              })
+                            : def.headerCellClassNames
+                        }
                         columnDef={def}
                         filterer={def.filterer}
                         filters={filters}
@@ -273,6 +282,14 @@ export function Header({
                     ),
                   ).map((def: LeafColumn | ColumnDefWithDefaults) => (
                     <HeaderCell
+                      classNames={
+                        typeof def.headerCellClassNames === "function"
+                          ? def.headerCellClassNames({
+                              columnDef: def,
+                              position: positions.get(def),
+                            })
+                          : def.headerCellClassNames
+                      }
                       columnDef={def}
                       filterer={def.filterer}
                       filters={filters}
@@ -294,6 +311,14 @@ export function Header({
                   {getFlattenedColumns(pinnedEndLeafColumns).map(
                     (def: LeafColumn | ColumnDefWithDefaults) => (
                       <HeaderCell
+                        classNames={
+                          typeof def.headerCellClassNames === "function"
+                            ? def.headerCellClassNames({
+                                columnDef: def,
+                                position: positions.get(def),
+                              })
+                            : def.headerCellClassNames
+                        }
                         columnDef={def}
                         filterer={def.filterer}
                         filters={filters}
@@ -315,6 +340,14 @@ export function Header({
                 leafColumns.slice(visibleColumnStart, visibleColumnEnd + 1),
               ).map((def: LeafColumn | ColumnDefWithDefaults) => (
                 <HeaderCell
+                  classNames={
+                    typeof def.headerCellClassNames === "function"
+                      ? def.headerCellClassNames({
+                          columnDef: def,
+                          position: positions.get(def),
+                        })
+                      : def.headerCellClassNames
+                  }
                   columnDef={def}
                   filterer={def.filterer}
                   filters={filters}

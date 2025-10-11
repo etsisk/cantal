@@ -1,10 +1,16 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { ColumnDefWithDefaults, LeafColumn, Position } from "./Grid";
 
 interface CellProps {
   allowEditCellOverflow: boolean;
   ariaLabel: string;
   children: ReactNode;
+  classNames?: {
+    base?: string;
+    edited?: string;
+    focused?: string;
+    selected?: string;
+  };
   columnDef: ColumnDefWithDefaults | LeafColumn;
   columnIndex: number;
   columnIndexRelative: number;
@@ -37,6 +43,7 @@ export function Cell({
   allowEditCellOverflow,
   ariaLabel,
   children,
+  classNames,
   columnDef,
   columnIndex,
   // QUESTION: Maybe we don't need `columnIndexRelative`?
@@ -52,7 +59,7 @@ export function Cell({
   startRowIndex,
   styles,
   virtualRowIndex,
-}: CellProps) {
+}: CellProps): ReactElement | null {
   if (position === undefined) {
     console.warn("Column definition not found.");
     return null;
@@ -60,13 +67,18 @@ export function Cell({
   const columnSpan =
     endColumnIndex - startColumnIndex - (columnIndex - startColumnIndex);
   const rowSpan = endRowIndex - startRowIndex + 1 - (rowIndex - startRowIndex);
+  const userClasses = `${classNames?.base ?? ""}${
+    selected ? ` ${classNames?.selected}` : ""
+  }${isFocused ? ` ${classNames?.focused}` : ""}${
+    isEditing ? ` ${classNames?.edited}` : ""
+  }`;
   const userStyles = typeof styles === "function" ? styles(children) : styles;
   return (
     <div
       aria-label={ariaLabel}
       className={`cantal-cell-base${isFocused ? " cantal-cell-focused" : ""}${
         columnDef.pinned ? ` cantal-cell-pinned-${columnDef.pinned}` : ""
-      }${selected ? " cantal-cell-selected" : ""}${isEditing ? " cantal-cell-editing" : ""}`}
+      }${selected ? " cantal-cell-selected" : ""}${isEditing ? " cantal-cell-editing" : ""}${userClasses.length ? ` ${userClasses}` : ""}`}
       data-col-idx={columnIndex}
       data-field={columnDef.field}
       data-row-idx={startRowIndex}

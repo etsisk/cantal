@@ -5,7 +5,7 @@ export function copy(
   data: DataRow[],
   leafColumns: LeafColumn[],
   selectedRanges: Range[],
-) {
+): void {
   const str = getCopyMatrix(data, leafColumns, selectedRanges)
     .map((row) => row.join("\t"))
     .join("\n");

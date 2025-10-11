@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type CSSProperties,
+  type ReactElement,
   type SyntheticEvent,
   useRef,
   useState,
@@ -9,7 +10,7 @@ import {
   type ColumnDef,
   type ColumnDefWithDefaults,
   type DataRow,
-  getLeafColumns,
+  getLeafColumnsFromColumnDefs as getLeafColumns,
   Grid,
   type NonEmptyArray,
   type Point,
@@ -28,7 +29,7 @@ export default {
 const manyRows = generateData(100_000, 10);
 const manyColumns = generateData(10, 10_000);
 
-export function Simple() {
+export function Simple(): ReactElement {
   const defs = colDefs
     .slice(0, 2)
     .concat(colDefs.slice(4, 7))
@@ -49,7 +50,7 @@ export function Simple() {
   );
 }
 
-export function Sizing() {
+export function Sizing(): ReactElement {
   const [isBlock, setIsBlock] = useState<boolean>(false);
   const containerStyles = isBlock
     ? { display: "block", height: "240px" }
@@ -69,7 +70,7 @@ export function Sizing() {
   );
 }
 
-export function Styling() {
+export function Styling(): ReactElement {
   const [gapState, setGapState] = useState(0);
   const gapStates = [
     { columnGap: 1, rowGap: 0 },
@@ -101,7 +102,7 @@ export function Styling() {
   );
 }
 
-export function CustomAriaLabels() {
+export function CustomAriaLabels(): ReactElement {
   const defs = colDefs.map((def) => {
     return {
       ...def,
@@ -118,7 +119,7 @@ export function CustomAriaLabels() {
   );
 }
 
-export function Sorting() {
+export function Sorting(): ReactElement {
   const [sorts, setSorts] = useState({});
   const defs = colDefs.map((def) => ({
     ...def,
@@ -231,14 +232,14 @@ function SelectFilterer({ field, handleFilter, options, styles }: SelectProps) {
 }
 
 function CitySelect(props: FiltererProps) {
-  const uniqueArr = Array.from(new Set(data.map((row) => row.city)));
+  const uniqueArr = Array.from(new Set(data.map((row) => row.city as string)));
   const options = [
     { label: "All", value: "" },
     ...uniqueArr.map((city) => ({ label: city, value: city })),
   ];
   return <SelectFilterer {...props} options={options} />;
 }
-export function Filtering() {
+export function Filtering(): ReactElement {
   const [filters, setFilters] = useState<{ [key: string]: string }>({});
   const defs = colDefs
     .map((def) => ({
@@ -285,7 +286,7 @@ export function Filtering() {
   );
 }
 
-export function ColumnResizing() {
+export function ColumnResizing(): ReactElement {
   const [defs, setDefs] = useState<ColumnDef[]>(
     colDefs.map((def) => ({ ...def, resizable: true })),
   );
@@ -304,7 +305,7 @@ export function ColumnResizing() {
   );
 }
 
-export function GroupedColumns() {
+export function GroupedColumns(): ReactElement {
   const [defs, setDefs] = useState(resizable(groupedColumnDefs.slice(0, 5)));
 
   function resizable(defs: ColumnDef[]): ColumnDef[] {
@@ -341,7 +342,7 @@ export function GroupedColumns() {
   );
 }
 
-export function PinnedColumns() {
+export function PinnedColumns(): ReactElement {
   const ref = useRef<HTMLFormElement>(null);
   const [selected, setSelected] = useState("");
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
@@ -438,7 +439,7 @@ export function PinnedColumns() {
   );
 }
 
-export function CellFocus() {
+export function CellFocus(): ReactElement {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   return (
     <>
@@ -462,7 +463,7 @@ export function CellFocus() {
   );
 }
 
-export function CellSelection() {
+export function CellSelection(): ReactElement {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   const [selectionMode, setSelectionMode] = useState<string>("lib-managed");
@@ -558,7 +559,7 @@ export function CellSelection() {
   );
 }
 
-export function CellCopy() {
+export function CellCopy(): ReactElement {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   return (
@@ -583,7 +584,7 @@ export function CellCopy() {
   );
 }
 
-export function ProgrammaticControls() {
+export function ProgrammaticControls(): ReactElement {
   const [filters, setFilters] = useState<{ [key: string]: string }>({});
   const [columnFilter, setColumnFilter] = useState<string>("");
   const [sorts, setSorts] = useState({});
@@ -735,7 +736,7 @@ export function ProgrammaticControls() {
   );
 }
 
-export function VirtualRows() {
+export function VirtualRows(): ReactElement {
   const { colDefs, data } = manyRows;
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
@@ -832,7 +833,7 @@ export function VirtualRows() {
   );
 }
 
-export function VirtualColumns() {
+export function VirtualColumns(): ReactElement {
   const { colDefs, data } = manyColumns;
   const [pinned, setPinned] = useState<{ [key: string]: "start" | "end" }>({});
   const [selected, setSelected] = useState("");
@@ -914,7 +915,7 @@ export function VirtualColumns() {
   );
 }
 
-export function RowSpanning() {
+export function RowSpanning(): ReactElement {
   const [sorts, setSorts] = useState({});
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
@@ -1067,7 +1068,7 @@ export function RowSpanning() {
   );
 }
 
-export function ColumnSpanning() {
+export function ColumnSpanning(): ReactElement {
   const [focusedCell, setFocusedCell] = useState<Cell | null>(null);
   const [selectedRanges, setSelectedRanges] = useState<Range[]>([]);
   const ref = useRef<HTMLFormElement>(null);
