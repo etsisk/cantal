@@ -6,7 +6,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./dist/cantal.css": "./dist/cantal.css"
   },
   "type": "module",
   "types": "./dist/index.d.ts",
