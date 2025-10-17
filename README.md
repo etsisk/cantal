@@ -2,7 +2,7 @@
 
 ## Overview
 
-Cantal is a lightweight but powerful grid library for React. Its primary responsibilities are rendering the layout of the grid and exposing grid events. It comes with sane defaults and it's highly customizable.
+Cantal is a lightweight but powerful grid library for React. Its primary responsibilities are rendering an accessible layout of the grid and exposing grid events. It comes with sane defaults and it's highly customizable.
 
 ## Quick start
 

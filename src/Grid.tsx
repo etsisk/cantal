@@ -230,18 +230,18 @@ interface GridProps {
     },
   ) => ReactNode;
   columnDefs: ColumnDef[];
+  columnFilters?: { [key: string]: string };
   columnSorts?: { [key: string]: string };
   columnSpans?: string;
   data: DataRow[];
   editCell?: EditCell | undefined;
-  filters?: { [key: string]: string };
   focusedCell?: Cell | null;
   gap?: number | { columnGap: number; rowGap: number };
+  handleColumnFilter?: (field: string, value: string) => void;
   handleContextMenu?: (args: {
     event: MouseEvent;
     defaultHandler: () => void;
   }) => void;
-  handleHeaderPointerDown?: (args: HandleHeaderPointerDownArgs) => void;
   handleDoublePointerDown?: (args: HandleDoublePointerDownArgs) => void;
   handleEdit?: (
     editRows: { [key: string]: DataRow },
@@ -253,7 +253,7 @@ interface GridProps {
     event: SyntheticEvent,
     point?: Point,
   ) => void;
-  handleFilter?: (field: string, value: string) => void;
+  handleHeaderPointerDown?: (args: HandleHeaderPointerDownArgs) => void;
   handleKeyDown?: (args: HandleKeyDownArgs) => void;
   handlePointerDown?: (args: HandlePointerDownArgs) => void;
   handleResize?: (
@@ -277,7 +277,7 @@ interface GridProps {
       | KeyboardEvent<HTMLDivElement>
       | MouseEvent<HTMLDivElement>,
   ) => void;
-  handleSort?: (
+  handleColumnSort?: (
     nextSortMode: { [key: string]: string } | undefined,
     e: ReactPointerEvent<HTMLButtonElement>,
   ) => void;
@@ -355,26 +355,26 @@ export function Grid({
     />
   ),
   columnDefs,
+  columnFilters = {},
   columnSorts = {},
   columnSpans,
   data,
   editCell,
-  filters = {},
   focusedCell,
   gap = { columnGap: 1, rowGap: 1 },
+  handleColumnFilter = noop,
   handleContextMenu = noop,
   handleDoublePointerDown = invokeDefaultHandler,
   handleEdit = noop,
   handleEditCellChange = noop,
   handleFocusedCellChange = noop,
-  handleFilter = noop,
   handleHeaderPointerDown = invokeDefaultHandler,
   handleKeyDown = invokeDefaultHandler,
   handlePointerDown = invokeDefaultHandler,
   handleResize = noop,
   handleScroll = noop,
   handleSelection,
-  handleSort = noop,
+  handleColumnSort = noop,
   header = (
     colDefs: ColumnDefWithDefaults[],
     leafColumns: LeafColumn[],
@@ -388,11 +388,11 @@ export function Grid({
     <Header
       canvasWidth={canvasWidth}
       columnDefs={colDefs}
-      filters={filters}
-      handleFilter={handleFilter}
+      filters={columnFilters}
+      handleFilter={handleColumnFilter}
       handlePointerDown={handleHeaderPointerDown}
       handleResize={handleResize}
-      handleSort={handleSort}
+      handleSort={handleColumnSort}
       leafColumns={leafColumns}
       positions={positions}
       ref={ref}

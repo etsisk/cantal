@@ -183,7 +183,7 @@ export function Sorting(): ReactElement {
         columnDefs={defs}
         columnSorts={sorts}
         data={sortingFunction(data, sorts)}
-        handleSort={(columnSort, e) => {
+        handleColumnSort={(columnSort, e) => {
           if (columnSort !== undefined) {
             if (e.shiftKey || e.metaKey) {
               // multi column sort
@@ -276,9 +276,9 @@ export function Filtering(): ReactElement {
       <h1>Filtering</h1>
       <Grid
         columnDefs={defs}
+        columnFilters={filters}
         data={filter(data, filters)}
-        filters={filters}
-        handleFilter={(field: string, value: string) =>
+        handleColumnFilter={(field: string, value: string) =>
           setFilters((prev) => ({ ...prev, [field]: value }))
         }
       />
@@ -708,11 +708,11 @@ export function ProgrammaticControls(): ReactElement {
       </button>
       <Grid
         columnDefs={defs}
+        columnFilters={filters}
         columnSorts={sorts}
         data={sortingFunction(filter(data, filters), sorts)}
-        filters={filters}
         focusedCell={focusedCell}
-        handleFilter={(field: string, value: string) =>
+        handleColumnFilter={(field: string, value: string) =>
           setFilters((prev) => ({ ...prev, [field]: value }))
         }
         handleFocusedCellChange={(cell: Cell) => {
@@ -721,7 +721,7 @@ export function ProgrammaticControls(): ReactElement {
         handleSelection={(selectedRanges: Range[]) => {
           setSelectedRanges(selectedRanges);
         }}
-        handleSort={(columnSort, e) => {
+        handleColumnSort={(columnSort, e) => {
           if (columnSort !== undefined) {
             if (e.shiftKey || e.metaKey) {
               setSorts({ ...sorts, ...columnSort });
@@ -1043,7 +1043,7 @@ export function RowSpanning(): ReactElement {
         handleSelection={(selectedRanges: Range[]) => {
           setSelectedRanges(selectedRanges);
         }}
-        handleSort={(columnSort, e) => {
+        handleColumnSort={(columnSort, e) => {
           if (columnSort !== undefined) {
             if (e.shiftKey || e.metaKey) {
               // multi column sort
