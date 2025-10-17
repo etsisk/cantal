@@ -4,6 +4,28 @@
 
 Cantal is a lightweight but powerful grid library for React. Its primary responsibilities are rendering the layout of the grid and exposing grid events. It comes with sane defaults and it's highly customizable.
 
+## Quick start
+
+```js
+import { Grid } from 'cantal';
+import 'cantal/dist/cantal.css'; // optional styling
+
+function MyGrid() {
+  return (
+    <Grid
+      columnDefs={[
+        { field: "x", title: "Latitude" },
+        { field: "y", title: "Longitude" },
+      ]}
+      data={[
+        { x: 40.77, y: -73.97 },
+        { x: 40.35, y: -74.66 },
+      ]}
+    />
+  );
+}
+```
+
 ## Motivation
 
 Cantal aims to offer the capabilities that come with an enterprise offering in a very lightweight package. You can kind of think of Cantal is a combination of the best parts of Tanstack Table and AG-Grid.
