@@ -33,18 +33,19 @@ Cantal aims to offer the capabilities that come with an enterprise offering in a
 ## Features
 
 - Accessible
-- Custom styles
-- Column resizing
-- Multi-column sorting
+- Lightweight (~10kb gzipped)
 - Column filtering
 - Column grouping
 - Column pinning
+- Column resizing
+- Multi-column sorting
 - Row spanning
 - Column spanning
 - Focus management
 - Cell, row, and range selection
 - Advanced copy / paste
 - Cell editing
+- Custom styling
 - Virtualization
 
 ## Grid props
@@ -115,3 +116,11 @@ CSS Grid layout is the underlying technology used to render your grid data. Brow
 ## <a name="column-spanning"></a>Column spanning
 
 Column spanning is one of the few features that is defined by a data row object.
+
+## More examples
+
+Clone the repo, install the dependencies and run:
+```sh
+npm run stories
+```
+There are dozens of stories that illustrate all the features and expose the code for how to implement it yourself.
