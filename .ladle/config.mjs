@@ -1,6 +1,6 @@
 /** @type {import('@ladle/react').UserConfig} */
 export default {
-  base: "/assets/",
+  base: "/",
   outDir: "stories",
   storyOrder: [
     "doc--guide",
