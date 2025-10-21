@@ -13,6 +13,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsdown",
+    "build-stories": "npx ladle build",
     "stories": "npx ladle serve",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
