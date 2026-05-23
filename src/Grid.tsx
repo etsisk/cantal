@@ -435,7 +435,7 @@ export function Grid({
   const { columnGap, rowGap } =
     typeof gap === "number" ? { columnGap: gap, rowGap: gap } : gap;
   const colDefs = applyColumnDefDefaults(columnDefs, columnDefDefaults);
-  if (process.env.NODE_ENV === "development") {
+  if (import.meta.env.DEV) {
     validateProps({
       body,
       columnDefs: colDefs,

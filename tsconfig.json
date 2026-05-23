@@ -13,7 +13,8 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "es2023",
-    "verbatimModuleSyntax": true
+    "types": ["vite/client"],
+    "verbatimModuleSyntax": true,
   },
-  "exclude": ["tsdown.config.ts"]
+  "exclude": ["tsdown.config.ts"],
 }

@@ -280,32 +280,32 @@ interface GridProps {
     setVisibleStartColumn: Dispatch<SetStateAction<number>>;
   }) => ReactNode;
   columnDefs: ColumnDef[];
+  columnFilters?: {
+    [key: string]: string;
+  };
   columnSorts?: {
     [key: string]: string;
   };
   columnSpans?: string;
   data: DataRow[];
   editCell?: EditCell | undefined;
-  filters?: {
-    [key: string]: string;
-  };
   focusedCell?: Cell | null;
   gap?: number | {
     columnGap: number;
     rowGap: number;
   };
+  handleColumnFilter?: (field: string, value: string) => void;
   handleContextMenu?: (args: {
     event: MouseEvent;
     defaultHandler: () => void;
   }) => void;
-  handleHeaderPointerDown?: (args: HandleHeaderPointerDownArgs) => void;
   handleDoublePointerDown?: (args: HandleDoublePointerDownArgs) => void;
   handleEdit?: (editRows: {
     [key: string]: DataRow;
   }, leafColumns: LeafColumn[]) => void;
   handleEditCellChange?: (cell?: EditCell) => void;
   handleFocusedCellChange?: (focusedCell: Cell, event: SyntheticEvent, point?: Point) => void;
-  handleFilter?: (field: string, value: string) => void;
+  handleHeaderPointerDown?: (args: HandleHeaderPointerDownArgs) => void;
   handleKeyDown?: (args: HandleKeyDownArgs) => void;
   handlePointerDown?: (args: HandlePointerDownArgs) => void;
   handleResize?: (field: string, value: number, columnDefs: ColumnDefWithDefaults[]) => void;
@@ -317,7 +317,7 @@ interface GridProps {
     viewportElement: HTMLDivElement;
   }) => void;
   handleSelection?: (selectedRanges: IndexedArray<Range>, endPoint: Point | undefined, e: PointerEvent | PointerEvent$1<HTMLDivElement> | KeyboardEvent<HTMLDivElement> | MouseEvent<HTMLDivElement>) => void;
-  handleSort?: (nextSortMode: {
+  handleColumnSort?: (nextSortMode: {
     [key: string]: string;
   } | undefined, e: PointerEvent$1<HTMLButtonElement>) => void;
   header?: (colDefs: ColumnDefWithDefaults[], leafColumns: LeafColumn[], positions: WeakMap<ColumnDefWithDefaults | LeafColumn, Position>, visibleStartColumn: number, visibleEndColumn: number, styles: CSSProperties, ref: RefObject<HTMLDivElement | null>, canvasWidth: string) => ReactNode;
@@ -336,26 +336,26 @@ interface GridProps {
 declare function Grid({
   body,
   columnDefs,
+  columnFilters,
   columnSorts,
   columnSpans,
   data,
   editCell,
-  filters,
   focusedCell,
   gap,
+  handleColumnFilter,
   handleContextMenu,
   handleDoublePointerDown,
   handleEdit,
   handleEditCellChange,
   handleFocusedCellChange,
-  handleFilter,
   handleHeaderPointerDown,
   handleKeyDown,
   handlePointerDown,
   handleResize,
   handleScroll,
   handleSelection,
-  handleSort,
+  handleColumnSort,
   header,
   id,
   overscanColumns,
