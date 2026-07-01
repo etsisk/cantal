@@ -26,11 +26,11 @@
   },
   "devDependencies": {
     "@ladle/react": "^5.1.1",
-    "@tsdown/css": "^0.22.0",
+    "@tsdown/css": "^0.22.3",
     "@types/node": "^25.9.1",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.0.3",
-    "tsdown": "^0.22.0",
+    "tsdown": "^0.22.3",
     "typescript": "^6.0.3"
   }
 }
